@@ -63,8 +63,7 @@ def parse_query(query: str):
 
 
 def find_queries(text: str):
-    """Find unique Nexus Mods search queries in text outside `code blocks` and
-    > block quotes.
+    """Find unique Nexus Mods search queries in plain text.
 
     :param str text: text to parse
     :return: queries
@@ -86,7 +85,7 @@ def find_queries(text: str):
 
 
 def nexus_search(query: str, filter: str):
-    """Search Nexus Mods for `query` and return results for `game_id`.
+    """Search Nexus Mods for `query` using `filter` and return results.
 
     :param str query: query to search for
     :param filter: Nexus Mods search API filter
