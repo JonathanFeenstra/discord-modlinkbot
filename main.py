@@ -309,4 +309,4 @@ if __name__ == '__main__':
             bot.unload_extension(f'cogs.{cog}')
         await ctx.send(embed=feedback_embed(f"Succesfully unloaded '{cog}'."))
 
-    bot.run(config.DEV)
+    bot.run(config.TOKEN)
