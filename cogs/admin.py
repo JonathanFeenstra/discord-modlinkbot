@@ -1,0 +1,107 @@
+"""
+Admin
+=====
+
+Cog for providing bot owner/admin-only commands.
+
+Partially based on:
+https://github.com/AlexFlipnote/discord_bot.py/blob/master/cogs/admin.py
+
+:copyright: (c) 2019-2020 Jonathan Feenstra
+:license: GPL-3.0
+"""
+from ast import literal_eval
+from urllib import request
+
+from discord.ext import commands
+
+from .util import SendErrorFeedback, delete_msg, feedback_embed
+
+
+class Admin(commands.Cog):
+    """Cog for providing owner/admin-only commands."""
+
+    def __init__(self, bot):
+        """Initialise cog.
+
+        :param discord.Client bot: bot to add cog to
+        """
+        self.bot = bot
+
+    @commands.command()
+    @commands.check(commands.is_owner())
+    async def config(self, ctx, attribute: str, *, value):
+        """Set configuration setting to value.
+
+        :param discord.ext.Commands.Context ctx: event context
+        :param str attribute: attribute to set
+        :param str value: value to set
+        """
+        async with SendErrorFeedback(ctx):
+            setattr(self.bot.config, attribute.upper(), literal_eval(value))
+        await ctx.send(f'Succesfully set `{attribute.upper()}={value}`.')
+
+    @commands.command(aliases=['stop', 'shutdown', 'close', 'quit', 'exit'])
+    @commands.check(commands.is_owner())
+    @delete_msg
+    async def logout(self, ctx):
+        """Log out the bot.
+
+        :param discord.ext.Commands.Context ctx: event context
+        """
+        print(f"{self.bot.user.name} has been logged out by {ctx.author}.")
+        await self.bot.close()
+
+    @commands.command(aliases=['username'])
+    @commands.check(commands.is_owner())
+    async def changeusername(self, ctx, *, username: str):
+        """Change the bot's username.
+
+        :param discord.ext.Commands.Context ctx: event context
+        :param str username: username to change to
+        """
+        async with SendErrorFeedback(ctx):
+            await self.bot.user.edit(username=username)
+        await ctx.send(embed=feedback_embed(f'Username set to {repr(username)}.'))
+
+    @commands.command(aliases=['nickname', 'nick'])
+    @commands.check(commands.is_owner())
+    async def changenickname(self, ctx, *, nickname: str):
+        """Change the bot's nickname in server.
+
+        :param discord.ext.Commands.Context ctx: event context
+        :param str nickname: nickname to change to
+        """
+        async with SendErrorFeedback(ctx):
+            await ctx.guild.me.edit(nick=nickname)
+        await ctx.send(embed=feedback_embed(f'Nickname set to {repr(nickname)}.'))
+
+    @commands.command(aliases=['avatar'])
+    @commands.check(commands.is_owner())
+    async def changeavatar(self, ctx, *, url: str = None):
+        """Change the bot's avatar picture.
+
+        Can also be done with an image attachment instead of a URL.
+
+        :param discord.ext.Commands.Context ctx: event context
+        :param str url: avatar url to change to
+        """
+        if url is None and len(ctx.message.attachments) == 1:
+            url = ctx.message.attachments[0].url
+        elif url:
+            url = url.strip('<>')
+        async with SendErrorFeedback(ctx):
+            await self.bot.user.edit(
+                avatar=request.urlopen(
+                    request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                ).read()
+            )
+        await ctx.send(embed=feedback_embed('Avatar changed.'))
+
+
+def setup(bot):
+    """Add this cog to bot.
+
+    :param discord.Client bot: bot to add cog to
+    """
+    bot.add_cog(Admin(bot))
