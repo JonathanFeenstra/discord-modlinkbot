@@ -100,7 +100,7 @@ def nexus_search(query: str, filter: str):
 
 
 class ModSearch(commands.Cog):
-    """Cog for searching Skyrim mods."""
+    """Cog for searching Nexus mods."""
 
     def __init__(self, bot):
         """Initialise cog.
