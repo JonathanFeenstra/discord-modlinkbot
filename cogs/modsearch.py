@@ -31,7 +31,7 @@ from .util import feedback_embed
 # https://support.discord.com/hc/en-us/articles/210298617
 MARKDOWN = re.compile((r"```.*?```"                      # ```multiline code```
                        r"|`.*?`"                         # `inline code`
-                       r"|^>\s.*?$"                     # > quote
+                       r"|^>\s.*?$"                      # > quote
                        r"|\*\*\*(?!\s).*?(?<!\s)\*\*\*"  # ***bold italics***
                        r"|\*\*(?!\s).*?(?<!\s)\*\*"      # **bold**
                        r"|\*(?!\s).*?(?<!\s)\*"          # *italics*

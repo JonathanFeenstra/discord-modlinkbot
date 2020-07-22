@@ -1,5 +1,5 @@
 # discord-modlinkbot
-A Discord bot for linking game mods.
+A Discord bot for linking game mods. [Invite](https://discordapp.com/oauth2/authorize?client_id=665861255051083806&permissions=67202176&scope=bot) (if the link does not work, this instance of the bot may no longer be available).
 
 ## Features
 Retrieve search results from [Nexus Mods](https://www.nexusmods.com/) for search queries in messages {between braces, separated by commas}, outside of any [Discord markdown](https://support.discord.com/hc/en-us/articles/210298617) or [spoiler tags](https://support.discord.com/hc/en-us/articles/360022320632), each query being between 3 and 120 characters in length. Queries cannot contain any of the following characters: ```\";:=*%$&_<>?`[]```.
@@ -8,11 +8,13 @@ Retrieve search results from [Nexus Mods](https://www.nexusmods.com/) for search
 
 This functionality is based on [u/modlinkbot on Reddit](https://www.reddit.com/r/modlinkbotsub/comments/dlp7d1/bot_operation_and_information/) and the [Nexus Mods Discord Bot](https://github.com/Nexus-Mods/discord-bot/) quicksearch command. In addition, search filters are configurable per server and channel using commands.
 
+Known bug: the [Nexus Mods search route](https://search.nexusmods.com/mods) returns outdated statistics which may lead to an incorrect first result (not the mod with the most endorsements).
+
 Detailed descriptions of the available commands and their usage are sent by the bot when using the `.help` command.
 ## Self-hosting Installation
 ### Requirements
 - [Python](https://www.python.org/downloads/) >= 3.8
-- [discord.py](https://github.com/Rapptz/discord.py) == 1.3.3
+- [discord.py](https://github.com/Rapptz/discord.py) == 1.3.4
 
 ### Configuration
 Create a `config.py` file in the same directory as `main.py`. [Make a Discord bot account](https://discordpy.readthedocs.io/en/latest/discord.html) and add the bot token to `config.py` as follows:
