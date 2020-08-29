@@ -5,8 +5,21 @@ discord-modlinkbot
 
 A Discord bot for linking game mods.
 
-:copyright: (c) 2019-2020 Jonathan Feenstra
+:copyright: (C) 2019-2020 Jonathan Feenstra
 :license: GPL-3.0
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 import traceback
 from collections import defaultdict
@@ -37,7 +50,7 @@ def _prefix_callable(bot, msg):
     return base
 
 
-class ModLinkBot(commands.Bot):
+class ModLinkBot(commands.AutoShardedBot):
     """Discord Bot for linking game mods"""
 
     def __init__(self):
@@ -125,7 +138,7 @@ class ModLinkBot(commands.Bot):
                 name='Links',
                 value='[GitHub](https://github.com/JonathanFeenstra/discord-modlinkbot)'
                       ' | [Invite](https://discordapp.com/oauth2/authorize?client_id='
-                      f'{bot.user.id}&permissions=67202176&scope=bot)',
+                      f'{bot.user.id}&permissions=67202209&scope=bot)',
                 inline=False)
             embed.set_footer(text=f'Prompted by @{ctx.author}', icon_url=ctx.author.avatar_url)
 
@@ -217,6 +230,27 @@ class ModLinkBot(commands.Bot):
                 and (not (max := getattr(self.config, 'MAX_GUILDS'))
                      or len(self.guilds) <= max))
 
+    async def get_guild_invite(self, guild):
+        """Get invite link to guild if possible.
+
+        :param discord.Guild guild: the guild
+        :return: guild invite link or empty string
+        :rtype: str
+        """
+        if guild.me.guild_permissions.manage_guild:
+            async for invite in guild.invites():
+                if not (invite.max_age or invite.temporary):
+                    return invite.url
+        if not (guild.channels and guild.me.guild_permissions.create_instant_invite):
+            return ''
+        if (channel := guild.system_channel or guild.rules_channel or guild.public_updates_channel) and channel.permissions_for(guild.me).create_instant_invite:
+            return await channel.create_invite()
+        else:
+            for channel in guild.channels:
+                if channel.permissions_for(guild.me).create_instant_invite:
+                    return await channel.create_invite()
+        return ''
+
     async def on_ready(self):
         """Print when the bot is ready."""
         print(f"{self.user.name} has been summoned.")
@@ -244,6 +278,22 @@ class ModLinkBot(commands.Bot):
             self.guild_configs[guild.id] = self._default_guild_config()
             await self._update_invite_info(guild)
             await self._update_presence()
+            if webhook_url := getattr(self.config, 'WEBHOOK_URL'):
+                try:
+                    webhook = discord.Webhook.partial(*webhook_url.split('/')[-2:], adapter=discord.RequestsWebhookAdapter())
+                    embed = discord.Embed(
+                        description=f"**`+`** {self.user.mention} has been added to **{guild}**.",
+                        colour=guild.me.colour.value or 14323253
+                    )
+                    guild_config = self.guild_configs[guild.id]
+                    if (inviter_id := guild_config['inviter_id']) != 404:
+                        embed.set_author(name=f"{guild_config['inviter_name']} has invited {self.user.name}",
+                                         icon_url=guild.get_member(inviter_id).avatar_url)
+                    if invite := await self.get_guild_invite(guild):
+                        embed.add_field(name="Invite Link", value=invite, inline=False)
+                    webhook.send(embed=embed)
+                except Exception as error:
+                    print(error, file=stderr)
         else:
             await guild.leave()
 
@@ -257,6 +307,20 @@ class ModLinkBot(commands.Bot):
             del self.guild_configs[guild.id]
         except KeyError:
             pass
+        if (webhook_url := getattr(self.config, 'WEBHOOK_URL')) and self.validate_guild(guild):
+            try:
+                webhook = discord.Webhook.partial(*webhook_url.split('/')[-2:], adapter=discord.RequestsWebhookAdapter())
+                embed = discord.Embed(
+                    description=f"**`-`** {self.user.mention} has been removed from **{guild}**.",
+                    colour=14323253
+                )
+                guild_config = self.guild_configs[guild.id]
+                if (inviter_id := guild_config['inviter_id']) != 404:
+                    embed.set_author(name=f"{self.user.name} has been removed from {guild}",
+                                     icon_url=guild.get_member(inviter_id).avatar_url)
+                webhook.send(embed=embed)
+            except Exception as error:
+                print(error, file=stderr)
 
     async def on_command_error(self, ctx, error):
         """Handle command exceptions.

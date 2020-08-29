@@ -14,7 +14,7 @@ Detailed descriptions of the available commands and their usage are sent by the 
 ## Self-hosting Installation
 ### Requirements
 - [Python](https://www.python.org/downloads/) >= 3.8
-- [discord.py](https://github.com/Rapptz/discord.py) == 1.3.4
+- [discord.py](https://github.com/Rapptz/discord.py) == 1.4.1
 
 ### Configuration
 Create a `config.py` file in the same directory as `main.py`. [Make a Discord bot account](https://discordpy.readthedocs.io/en/latest/discord.html) and add the bot token to `config.py` as follows:
@@ -30,11 +30,15 @@ INITIAL_COGS = (
     'cogs.util',
 )
 ```
+Set the webhook URL for logging when the bot is added or removed from a guild (optional):
+```python3
+WEBHOOK_URL = 'your webhook URL'
+```
 Add the Discord user IDs that may use owner-only commands (optional):
 ```python3
 OWNER_IDS = {
-    340577388331139072,  # Jonathan (bot developer)
-    255144776695808001,  # Yoosk (bot host)
+    340577388331139072,  # Jonathan (developer)
+    255144776695808001,  # Yoosk (host)
 }
 ```
 Set the maximum number of guilds that the bot can join (optional):

@@ -10,8 +10,21 @@ Functionality based on:
 - Nexus Mods Discord Bot quicksearch:
   https://github.com/Nexus-Mods/discord-bot/blob/master/nexus-discord.js
 
-:copyright: (c) 2019-2020 Jonathan Feenstra
+:copyright: (C) 2019-2020 Jonathan Feenstra
 :license: GPL-3.0
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 import json
 import re
@@ -78,8 +91,6 @@ def find_queries(text: str):
             parsed_query_length = len(parse_query(query))
             if parsed_query_length > 2 and parsed_query_length <= 120:
                 queries.append(query.strip())
-            else:
-                return []
 
     return list(dict.fromkeys(queries))
 
@@ -100,7 +111,7 @@ def nexus_search(query: str, filter: str):
 
 
 class ModSearch(commands.Cog):
-    """Cog for searching Nexus mods."""
+    """Cog for searching Nexus Mods."""
 
     def __init__(self, bot):
         """Initialise cog.
@@ -166,7 +177,7 @@ class ModSearch(commands.Cog):
         embed = discord.Embed(colour=14323253)
         embed.set_author(name='Nexus Mods',
                          url='https://www.nexusmods.com/',
-                         icon_url='https://www.nexusmods.com/Contents/Images/favicons/favicon_ReskinOrange/favicon.ico')
+                         icon_url='https://images.nexusmods.com/favicons/ReskinOrange/favicon-32x32.png')
         embed.set_footer(text=f'Searched by @{ctx.author}',
                          icon_url=ctx.author.avatar_url)
         if len(queries) > 20:
