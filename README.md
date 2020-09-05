@@ -1,5 +1,5 @@
 # discord-modlinkbot
-A Discord bot for linking game mods. [Invite](https://discordapp.com/oauth2/authorize?client_id=665861255051083806&permissions=67202176&scope=bot) (if the link does not work, this instance of the bot may no longer be available).
+A Discord bot for linking game mods. [Invite](https://discordapp.com/oauth2/authorize?client_id=665861255051083806&permissions=67202209&scope=bot) (if the link does not work, this instance of the bot may no longer be available).
 
 ## Features
 Retrieve search results from [Nexus Mods](https://www.nexusmods.com/) for search queries in messages {between braces, separated by commas}, outside of any [Discord markdown](https://support.discord.com/hc/en-us/articles/210298617) or [spoiler tags](https://support.discord.com/hc/en-us/articles/360022320632), each query being between 3 and 120 characters in length. Queries cannot contain any of the following characters: ```\";:=*%$&_<>?`[]```.
@@ -14,6 +14,7 @@ Detailed descriptions of the available commands and their usage are sent by the 
 ## Self-hosting Installation
 ### Requirements
 - [Python](https://www.python.org/downloads/) >= 3.8
+- [aiosqlite](https://aiosqlite.omnilib.dev/en/stable/) >= 0.15.0
 - [discord.py](https://github.com/Rapptz/discord.py) == 1.4.1
 
 ### Configuration
@@ -46,4 +47,4 @@ Set the maximum number of guilds that the bot can join (optional):
 MAX_GUILDS = 512
 ```
 ### Launch
-Run `main.py` and [add the bot to the Discord server](https://discordpy.readthedocs.io/en/latest/discord.html#inviting-your-bot). The bot will only stay online as long as the script is running. Hosting can for example be done on cloud platforms such as [Heroku](https://www.heroku.com).
+Run `main.py` and [add the bot to the Discord server](https://discordpy.readthedocs.io/en/latest/discord.html#inviting-your-bot). The bot will only stay online as long as the script is running.
