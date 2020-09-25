@@ -124,7 +124,7 @@ class Util(commands.Cog):
 
         :param discord.ext.Commands.Context ctx: event context
         """
-        guilds_info = [f"```\n{'Name': <32}Members  Joined (dd/mm/yyyy)"]
+        guilds_info = [f"```\n{'Name': <32}Members  Joined (d/m/y)"]
 
         for guild in self.bot.guilds:
             name = guild.name if len(guild.name) <= 30 else f'{guild.name[:27]}...'

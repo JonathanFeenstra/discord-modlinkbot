@@ -28,10 +28,6 @@ from aiosqlite import connect
 class DBService:
     """modlinkbot database service."""
 
-    async def __del__(self):
-        """"Close database connection on deletion."""
-        await self.conn.close()
-
     @classmethod
     async def create(cls):
         """"Factory method to create a database service."""

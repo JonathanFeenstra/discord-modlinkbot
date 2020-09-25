@@ -63,6 +63,7 @@ class Admin(commands.Cog):
         :param discord.ext.Commands.Context ctx: event context
         """
         print(f"{self.bot.user.name} has been logged out by {ctx.author}.")
+        await self.bot.db.conn.close()
         await self.bot.close()
 
     @commands.command(aliases=['username'])

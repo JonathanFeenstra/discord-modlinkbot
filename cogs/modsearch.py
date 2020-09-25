@@ -102,12 +102,16 @@ def nexus_search(query: str, filter: str):
     :param filter: Nexus Mods search API filter
     :return: search results
     :rtype: list[dict]
+    :raise URLError: with `url` attribute if this exception occurs
     """
-    req = request.Request("https://search.nexusmods.com/mods?terms="
-                          f"{parse_query(query)}{filter}",
-                          headers={'User-Agent': 'Mozilla/5.0'})
-    with request.urlopen(req) as url:
-        return json.load(url).get('results')
+    url = f"https://search.nexusmods.com/mods?terms={parse_query(query)}{filter}"
+    try:
+        req = request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with request.urlopen(req) as response:
+            return json.load(response).get('results')
+    except URLError as e:
+        e.url = url
+        raise e
 
 
 class ModSearch(commands.Cog):
@@ -131,6 +135,8 @@ class ModSearch(commands.Cog):
         """
         for query in queries:
             shown_query = repr(WHITESPACE.sub(' ', query))
+            quoted_query = quote(query)
+            global_search = f"[Nexus Mods Global Search](https://www.nexusmods.com/search/?gsearch={quoted_query}&gsearchtype=mods) | [DuckDuckGo Search](https://duckduckgo.com/?q={quoted_query})"
             embed.add_field(name="Search results for:",
                             value=f"**{shown_query}**",
                             inline=False)
@@ -152,18 +158,18 @@ class ModSearch(commands.Cog):
                 except URLError as e:
                     any_results = True
                     embed.add_field(name=game_name,
-                                    value=f"Error: `{e}`"
-                                          "\n[Perhaps the servers are down?]"
-                                          "(https://www.isitdownrightnow.com/nexusmods.com.html)",
+                                    value=f"[`{e}`]({e.url})\n[Server Status]"
+                                          "(https://www.isitdownrightnow.com/nexusmods.com.html)"
+                                          f" | {global_search}",
                                     inline=False)
                 except Exception as e:
                     any_results = True
                     embed.add_field(name=game_name,
-                                    value=f"Error: `{e}`",
+                                    value=f"`{e}`\n{global_search}",
                                     inline=False)
             if not any_results:
-                embed.add_field(name='No results.',
-                                value=f"[DuckDuckGo Search {shown_query}](https://duckduckgo.com/?q={quote(query)})",
+                embed.add_field(name=f"No results.",
+                                value=global_search,
                                 inline=False)
         return embed
 
