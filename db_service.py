@@ -32,10 +32,10 @@ class DBService:
     async def create(cls):
         """"Factory method to create a database service."""
         self = DBService()
-        self.conn = await connect('modlinkbot.db', detect_types=PARSE_DECLTYPES | PARSE_COLNAMES)
-        self.c = await self.conn.cursor()
+        self.con = await connect('modlinkbot.db', detect_types=PARSE_DECLTYPES | PARSE_COLNAMES)
+        self.cur = await self.con.cursor()
 
-        await self.c.execute("""
+        await self.cur.execute("""
             CREATE TABLE
             IF NOT EXISTS guild (
                 id INTEGER NOT NULL PRIMARY KEY,
@@ -45,14 +45,14 @@ class DBService:
                 joined_at TIMESTAMP NOT NULL
             )
         """)
-        await self.c.execute("""
+        await self.cur.execute("""
             CREATE TABLE
             IF NOT EXISTS channel (
                 id INTEGER NOT NULL PRIMARY KEY,
                 guild_id INTEGER NOT NULL REFERENCES guild ON DELETE CASCADE
             )
         """)
-        await self.c.execute("""
+        await self.cur.execute("""
             CREATE TABLE
             IF NOT EXISTS game (
                 name TEXT NOT NULL,
@@ -61,13 +61,13 @@ class DBService:
                 channel_id INTEGER REFERENCES channel ON DELETE CASCADE
             )
         """)
-        await self.c.execute("""
+        await self.cur.execute("""
             CREATE TABLE
             IF NOT EXISTS blocked (
                 id INTEGER NOT NULL PRIMARY KEY
             )
         """)
-        await self.c.execute("""
+        await self.cur.execute("""
             CREATE TABLE
             IF NOT EXISTS admin (
                 id INTEGER NOT NULL PRIMARY KEY
@@ -76,12 +76,16 @@ class DBService:
         return self
 
     async def execute(self, sql: str, *args):
-        """"Wraps `self.c.execute`.
+        """Wraps `self.cur.execute`.
 
         :param str sql: SQL to execute
         """
-        return await self.c.execute(sql, *args)
+        return await self.cur.execute(sql, *args)
 
     async def commit(self):
-        """Wraps `self.conn.commit`."""
-        return await self.conn.commit()
+        """Wraps `self.con.commit`."""
+        return await self.con.commit()
+
+    async def close(self):
+        """Wraps `self.con.close`."""
+        return await self.con.close()

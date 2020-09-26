@@ -26,14 +26,12 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
-import json
 import re
 from html import unescape
-from urllib import request
-from urllib.error import URLError
 from urllib.parse import quote
 
 import discord
+from aiohttp.web import HTTPException
 from discord.ext import commands
 
 from .util import feedback_embed
@@ -95,25 +93,6 @@ def find_queries(text: str):
     return list(dict.fromkeys(queries))
 
 
-def nexus_search(query: str, filter: str):
-    """Search Nexus Mods for `query` using `filter` and return results.
-
-    :param str query: query to search for
-    :param filter: Nexus Mods search API filter
-    :return: search results
-    :rtype: list[dict]
-    :raise URLError: with `url` attribute if this exception occurs
-    """
-    url = f"https://search.nexusmods.com/mods?terms={parse_query(query)}{filter}"
-    try:
-        req = request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with request.urlopen(req) as response:
-            return json.load(response).get('results')
-    except URLError as e:
-        e.url = url
-        raise e
-
-
 class ModSearch(commands.Cog):
     """Cog for searching Nexus Mods."""
 
@@ -124,7 +103,7 @@ class ModSearch(commands.Cog):
         """
         self.bot = bot
 
-    def _fetch_nexus_results(self, embed, queries, game_filters):
+    async def _fetch_nexus_results(self, embed, queries, game_filters):
         """Return Discord embed with mod search results from `queries`.
 
         :param discord.Embed embed: embed to add results to
@@ -144,7 +123,7 @@ class ModSearch(commands.Cog):
             for game_name, filter in game_filters.items():
                 include_adult = bool(NEXUS_INCLUDE_ADULT.search(filter))
                 try:
-                    results = nexus_search(query, filter)
+                    results = await self.nexus_search(query, filter)
                     if results:
                         any_results = True
                         mod = results[0]
@@ -155,7 +134,7 @@ class ModSearch(commands.Cog):
                         if len(results) > 1:
                             search_result = f"{search_result} | [More results](https://www.nexusmods.com/{results[0]['game_name']}/mods/?RH_ModList=nav:true,home:false,type:0,user_id:0,advfilt:true,include_adult:{include_adult},page_size:20,open:true,search_filename:{parse_query(query).replace(',', '+')}#permalink)"
                         embed.add_field(name=game_name, value=search_result)
-                except URLError as e:
+                except HTTPException as e:
                     any_results = True
                     embed.add_field(name=game_name,
                                     value=f"[`{e}`]({e.url})\n[Server Status]"
@@ -165,13 +144,31 @@ class ModSearch(commands.Cog):
                 except Exception as e:
                     any_results = True
                     embed.add_field(name=game_name,
-                                    value=f"`{e}`\n{global_search}",
+                                    value=f"`{e.__class__.__name__}: {e}`\n{global_search}",
                                     inline=False)
             if not any_results:
                 embed.add_field(name=f"No results.",
                                 value=global_search,
                                 inline=False)
         return embed
+
+    async def nexus_search(self, query: str, filter: str):
+        """Search Nexus Mods for `query` using `filter` and return results.
+
+        :param str query: query to search for
+        :param filter: Nexus Mods search API filter
+        :return: search results
+        :rtype: list[dict]
+        :raise aiohttp.web.HTTPException: if status code is not 200
+        """
+        async with self.bot.session.get(
+                f"https://search.nexusmods.com/mods?terms={parse_query(query)}{filter}",
+                headers={'User-Agent': 'Mozilla/5.0'}) as res:
+            if res.status == 200:
+                response_json = await res.json()
+                return response_json.get('results')
+            else:
+                raise HTTPException(status=res.status, reason=res.reason, url=res.url)
 
     async def send_nexus_results(self, ctx, queries, nexus_config):
         """Send Nexus Mods query results.
@@ -196,11 +193,10 @@ class ModSearch(commands.Cog):
             embed.clear_fields()
             result_msg = await ctx.channel.send(embed=embed)
             embed.description = None
-            embed = self._fetch_nexus_results(
+            embed = await self._fetch_nexus_results(
                 embed,
                 queries[idx:idx + queries_per_embed],
-                nexus_config
-            )
+                nexus_config)
             await result_msg.edit(embed=embed)
 
     @commands.Cog.listener()

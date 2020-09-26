@@ -88,7 +88,7 @@ class SendErrorFeedback:
         :param traceback tb: traceback or None
         """
         if exc is not None:
-            await self.ctx.send(embed=feedback_embed(f'`{exc}`', False))
+            await self.ctx.send(embed=feedback_embed(f'`{exc_type.__name__}: {exc}`', False))
 
 
 class Util(commands.Cog):

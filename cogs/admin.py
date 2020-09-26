@@ -24,7 +24,6 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 from ast import literal_eval
-from urllib import request
 
 from discord.ext import commands
 
@@ -58,9 +57,13 @@ class Admin(commands.Cog):
         :param str attribute: attribute to set
         :param str value: value to set
         """
-        async with SendErrorFeedback(ctx):
-            setattr(self.bot.config, attribute.upper(), literal_eval(value))
-        await ctx.send(f'Succesfully set `{attribute.upper()}={value}`.')
+        try:
+            async with SendErrorFeedback(ctx):
+                setattr(self.bot.config, attribute.upper(), literal_eval(value))
+        except Exception:
+            pass
+        else:
+            await ctx.send(f'Succesfully set `{attribute.upper()}={value}`.')
 
     @commands.command(aliases=['stop', 'shutdown', 'close', 'quit', 'exit'])
     @delete_msg
@@ -79,20 +82,28 @@ class Admin(commands.Cog):
         :param discord.ext.Commands.Context ctx: event context
         :param str username: username to change to
         """
-        async with SendErrorFeedback(ctx):
-            await self.bot.user.edit(username=username)
-        await ctx.send(embed=feedback_embed(f'Username set to {repr(username)}.'))
+        try:
+            async with SendErrorFeedback(ctx):
+                await self.bot.user.edit(username=username)
+        except Exception:
+            pass
+        else:
+            await ctx.send(embed=feedback_embed(f'Username set to {repr(username)}.'))
 
     @commands.command(aliases=['nickname', 'nick'])
-    async def changenickname(self, ctx, *, nickname: str):
+    async def changenickname(self, ctx, *, nickname: str = None):
         """Change the bot's nickname in server.
 
         :param discord.ext.Commands.Context ctx: event context
         :param str nickname: nickname to change to
         """
-        async with SendErrorFeedback(ctx):
-            await ctx.guild.me.edit(nick=nickname)
-        await ctx.send(embed=feedback_embed(f'Nickname set to {repr(nickname)}.'))
+        try:
+            async with SendErrorFeedback(ctx):
+                await ctx.guild.me.edit(nick=nickname)
+        except Exception:
+            pass
+        else:
+            await ctx.send(embed=feedback_embed(f'Nickname set to {repr(nickname)}.' if nickname else 'Nickname removed'))
 
     @commands.command(aliases=['avatar'])
     async def changeavatar(self, ctx, *, url: str = None):
@@ -107,13 +118,14 @@ class Admin(commands.Cog):
             url = ctx.message.attachments[0].url
         elif url:
             url = url.strip('<>')
-        async with SendErrorFeedback(ctx):
-            await self.bot.user.edit(
-                avatar=request.urlopen(
-                    request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-                ).read()
-            )
-        await ctx.send(embed=feedback_embed('Avatar changed.'))
+        try:
+            async with SendErrorFeedback(ctx):
+                async with self.bot.session.get(url) as res:
+                    await self.bot.user.edit(avatar=await res.read())
+        except Exception:
+            pass
+        else:
+            await ctx.send(embed=feedback_embed('Avatar changed.'))
 
 
 def setup(bot):

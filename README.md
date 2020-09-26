@@ -14,9 +14,14 @@ Detailed descriptions of the available commands and their usage are sent by the 
 ## Self-hosting Installation
 ### Requirements
 - [Python](https://www.python.org/downloads/) >= 3.8
+- [aiohttp]() >= 3.6.2
 - [aiosqlite](https://aiosqlite.omnilib.dev/en/stable/) >= 0.15.0
 - [discord.py](https://github.com/Rapptz/discord.py) == 1.4.1
 
+The required Python libraries can be installed with pip using the command:
+```
+pip install -r requirements.txt
+```
 ### Configuration
 Create a `config.py` file in the same directory as `bot.py`. [Make a Discord bot account](https://discordpy.readthedocs.io/en/latest/discord.html) and add the bot token to `config.py` as follows:
 ```python3

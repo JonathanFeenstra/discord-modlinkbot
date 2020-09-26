@@ -28,6 +28,7 @@ from itertools import groupby
 from sys import stderr
 
 import discord
+from aiohttp import ClientSession
 from discord.ext import commands
 
 import config
@@ -298,6 +299,7 @@ class ModLinkBot(commands.AutoShardedBot):
         print(f"{self.user.name} has been summoned.")
 
         self.db = await DBService.create()
+        self.session = ClientSession()
 
         blocked_ids = await (await self.db.execute('SELECT id FROM blocked')).fetchall()
         self.blocked.update(*blocked_ids)
@@ -349,7 +351,8 @@ class ModLinkBot(commands.AutoShardedBot):
                         embed.add_field(name="Invite Link", value=invite, inline=False)
                     webhook.send(embed=embed)
                 except Exception as error:
-                    print(error, file=stderr)
+                    print(f'{error.__class__.__name__}: {error}', file=stderr)
+                    traceback.print_tb(error.__traceback__)
         else:
             await guild.leave()
 
@@ -383,7 +386,8 @@ class ModLinkBot(commands.AutoShardedBot):
                                      icon_url=guild.owner.avatar_url if guild.owner else discord.Embed.Empty)
                 webhook.send(embed=embed)
             except Exception as error:
-                print(error, file=stderr)
+                print(f'{error.__class__.__name__}: {error}', file=stderr)
+                traceback.print_tb(error.__traceback__)
 
     async def on_guild_channel_delete(self, channel):
         """Delete channel from database on deletion.
@@ -415,16 +419,25 @@ class ModLinkBot(commands.AutoShardedBot):
         elif isinstance(error, commands.CommandOnCooldown):
             await ctx.send(f"{ctx.author.mention} Command on cooldown. "
                            f"Try again after {round(error.retry_after, 1)} s.")
+        elif isinstance(error, commands.CommandInvokeError):
+            original = error.original
+            if not isinstance(original, discord.HTTPException):
+                print(f'In {ctx.command.qualified_name}:', file=stderr)
+                traceback.print_tb(original.__traceback__)
+                print(f'{original.__class__.__name__}: {original}', file=stderr)
         else:
-            print(error, file=stderr)
+            print(f'{error.__class__.__name__}: {error}', file=stderr)
+            traceback.print_tb(error.__traceback__)
 
     async def close(self):
-        """"Closes the connections with the database and Discord."""
-        if getattr(self, 'db'):
-            try:
-                await self.db.conn.close()
-            except Exception:
-                pass
+        """"
+        Closes the aiohttp client session as well as the connections with the
+        database and Discord.
+        """
+        if db := getattr(self, 'db'):
+            await db.close()
+        if session := getattr(self, 'session'):
+            await session.close()
         return await super().close()
 
 
