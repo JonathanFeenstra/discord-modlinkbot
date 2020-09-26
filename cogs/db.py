@@ -410,7 +410,7 @@ class DB(commands.Cog):
         """
         self.bot.guild_configs[ctx.guild.id]['games'] = defaultdict(dict)
         await self.bot.db.execute(
-            """DELETE FROM games
+            """DELETE FROM game
                WHERE guild_id = ? AND channel_id = ?""", (ctx.guild.id, None))
         await self.bot.db.commit()
         await ctx.send(embed=feedback_embed("Server filters cleared."))

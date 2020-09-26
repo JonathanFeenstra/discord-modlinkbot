@@ -52,7 +52,7 @@ def feedback_embed(description: str, success=True):
     """Return feedback embed with description.
 
     :param str description: embed description
-    :param bool success: wether to return a positive feedback embed
+    :param bool success: whether to return a positive feedback embed
     :return: feedback embed
     :rtype: discord.Embed
     """

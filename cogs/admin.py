@@ -41,8 +41,16 @@ class Admin(commands.Cog):
         """
         self.bot = bot
 
+    async def cog_check(self, ctx):
+        """
+        Checks if context author is a bot admin for every command in this cog.
+
+        :param discord.ext.Commands.Context ctx: event context
+        :return bool: whether context author is a bot admin
+        """
+        return await self.bot.is_owner(ctx.author)
+
     @commands.command()
-    @commands.check(commands.is_owner())
     async def config(self, ctx, attribute: str, *, value):
         """Set configuration setting to value.
 
@@ -55,7 +63,6 @@ class Admin(commands.Cog):
         await ctx.send(f'Succesfully set `{attribute.upper()}={value}`.')
 
     @commands.command(aliases=['stop', 'shutdown', 'close', 'quit', 'exit'])
-    @commands.check(commands.is_owner())
     @delete_msg
     async def logout(self, ctx):
         """Log out the bot.
@@ -63,11 +70,9 @@ class Admin(commands.Cog):
         :param discord.ext.Commands.Context ctx: event context
         """
         print(f"{self.bot.user.name} has been logged out by {ctx.author}.")
-        await self.bot.db.conn.close()
         await self.bot.close()
 
     @commands.command(aliases=['username'])
-    @commands.check(commands.is_owner())
     async def changeusername(self, ctx, *, username: str):
         """Change the bot's username.
 
@@ -79,7 +84,6 @@ class Admin(commands.Cog):
         await ctx.send(embed=feedback_embed(f'Username set to {repr(username)}.'))
 
     @commands.command(aliases=['nickname', 'nick'])
-    @commands.check(commands.is_owner())
     async def changenickname(self, ctx, *, nickname: str):
         """Change the bot's nickname in server.
 
@@ -91,7 +95,6 @@ class Admin(commands.Cog):
         await ctx.send(embed=feedback_embed(f'Nickname set to {repr(nickname)}.'))
 
     @commands.command(aliases=['avatar'])
-    @commands.check(commands.is_owner())
     async def changeavatar(self, ctx, *, url: str = None):
         """Change the bot's avatar picture.
 
