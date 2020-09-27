@@ -205,8 +205,7 @@ class ModSearch(commands.Cog):
 
         :param discord.Message msg: the new message
         """
-        if (not self.bot.validate_msg(msg) or msg.embeds
-                or not msg.channel.permissions_for(msg.author).embed_links):
+        if not self.bot.validate_msg(msg):
             return
 
         ctx = await self.bot.get_context(msg)
@@ -221,7 +220,10 @@ class ModSearch(commands.Cog):
         if not queries:
             return
 
-        await self.send_nexus_results(ctx, queries, nexus_config)
+        if not ctx.channel.permissions_for(ctx.me).embed_links:
+            await ctx.send(":x: **Searching mods requires 'Embed Links' permission.**")
+        else:
+            await self.send_nexus_results(ctx, queries, nexus_config)
 
     @commands.command(aliases=['nexussearch', 'modsearch'])
     @commands.has_permissions(embed_links=True)

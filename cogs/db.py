@@ -217,8 +217,8 @@ class DB(commands.Cog):
         Requires the 'Manage Server' permission or bot admin permissions.
 
         `text` can either be a game name with a Nexus Mods search API query
-        string suffix (filter), or a preset name. Use the `.spp` command for a
-        list of search configuration presets.
+        string suffix (filter), or a preset name. Use the `.presets` command for
+        a list of search configuration presets.
 
         Examples
         --------
@@ -465,7 +465,7 @@ class DB(commands.Cog):
     @commands.command(aliases=['unblacklist'])
     @commands.check(commands.is_owner())
     async def unblock(self, ctx, _id: int):
-        """Remove guild or user from blocked.
+        """Unblock a guild or user from using the bot.
 
         :param discord.ext.Commands.Context ctx: event context
         :param int _id: guild or user id
@@ -523,7 +523,7 @@ class DB(commands.Cog):
         :param discord.ext.Commands.Context ctx: event context
         :param int user_id: ID of user to remove as admin
         """
-        if user_id == getattr(self.bot, 'app_owner_id'):
+        if user_id == getattr(self.bot, 'app_owner_id', None):
             return await ctx.send(embed=feedback_embed(f'Cannot remove app owner.', False))
         try:
             self.bot.owner_ids.remove(user_id)

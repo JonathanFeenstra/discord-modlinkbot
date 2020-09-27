@@ -42,8 +42,9 @@ def delete_msg(coro):
         :param discord.ext.commands.Cog self: cog to which command belongs
         :param discord.ext.Commands.Context ctx: event context
         """
-        with suppress(discord.NotFound):
-            await ctx.message.delete()
+        if ctx.channel.permissions_for(ctx.me).manage_messages:
+            with suppress(discord.NotFound):
+                await ctx.message.delete()
         await coro(self, ctx, *args, **kwargs)
     return wrapper
 
@@ -101,7 +102,24 @@ class Util(commands.Cog):
         """
         self.bot = bot
 
+    @commands.command()
+    async def invite(self, ctx):
+        """Send bot invite link.
+
+        :param discord.ext.Commands.Context ctx: event context
+        """
+        me = ctx.guild.me
+        invite_link = f'https://discordapp.com/oauth2/authorize?client_id={me.id}&permissions=67202209&scope=bot'
+        await ctx.send(
+            embed=discord.Embed(
+                title=f':link: Add {me.name} to your server',
+                description=f'Use [this link]({invite_link}) to add {me.mention} to your server. '
+                            "The permissions 'Manage Server', 'Create Invite', 'Change Nickname', "
+                            "'View Audit Log' and 'Manage Messages' are optional.",
+                colour=me.colour.value or 14323253))
+
     @commands.command(aliases=['latency'])
+    @commands.cooldown(rate=1, per=3, type=commands.BucketType.channel)
     async def ping(self, ctx):
         """Send latency in ms.
 

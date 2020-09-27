@@ -48,6 +48,14 @@ def _prefix_callable(bot, msg):
         return commands.when_mentioned_or(guild_config.get('prefix', '.'))(bot, msg)
     return commands.when_mentioned_or('.')(bot, msg)
 
+def _send_webhook(webhook_url: str, **kwargs):
+    """Send a message using the specified webhook.
+
+    :param str webhook_url: URL of the webhook to send to
+    """
+    webhook = discord.Webhook.partial(*webhook_url.split('/')[-2:],
+                                      adapter=discord.RequestsWebhookAdapter())
+    return webhook.send(**kwargs)
 
 class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
     """Help command for modlinkbot."""
@@ -96,23 +104,18 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
         if bot.get_cog('DB'):
             description.append(
                 f"Use `{prefix}help setsf` for an explanation about how to configure "
-                f"Nexus Mods search for a server, or `{prefix}help setchf` for a channel."
-            )
+                f"Nexus Mods search for a server, or `{prefix}help setchf` for a channel.")
         else:
             description.append(
                 "**Important:** Load the DB extension to enable search configuration settings "
-                f"using `{prefix}load db` (can only be done by bot admins)."
-            )
+                f"using `{prefix}load db` (can only be done by bot admins).")
         if not bot.get_cog('ModSearch'):
             description.append(
                 "**Important:** Load the ModSearch extension to enable Nexus Mods search "
-                f"using `{prefix}load modsearch` (can only be done by bot admins)."
-            )
-        embed = discord.Embed(
-            title=f'{bot.user.name} | Help',
-            description='\n\n'.join(description),
-            colour=ctx.guild.me.colour.value or 14323253
-        )
+                f"using `{prefix}load modsearch` (can only be done by bot admins).")
+        embed = discord.Embed(title=f'{bot.user.name} | Help',
+                              description='\n\n'.join(description),
+                              colour=ctx.guild.me.colour.value or 14323253)
         embed.add_field(
             name='Links',
             value='[GitHub](https://github.com/JonathanFeenstra/discord-modlinkbot)'
@@ -132,7 +135,8 @@ class ModLinkBot(commands.AutoShardedBot):
     def __init__(self):
         """Initialise bot."""
         super().__init__(command_prefix=_prefix_callable,
-                         help_command=ModLinkBotHelpCommand())
+                         help_command=ModLinkBotHelpCommand(),
+                         status=discord.Status.idle)
 
         self.config = config
         self.guild_configs = defaultdict(self._default_guild_config)
@@ -194,19 +198,17 @@ class ModLinkBot(commands.AutoShardedBot):
                         await self.db.execute(
                             """INSERT OR IGNORE INTO guild
                                VALUES (?, ?, ?, ?, ?)""",
-                            (guild.id, '.', str(log_entry.user), log_entry.user.id, log_entry.created_at)
-                        )
+                            (guild.id, '.', str(log_entry.user), log_entry.user.id, log_entry.created_at))
                         await self.db.commit()
                     break
         else:
             await self.db.execute("""INSERT OR IGNORE INTO guild
                                     VALUES (?, ?, ?, ?, ?)""",
-                                  (guild.id, '.', 'Unknown', 404, datetime.now())
-            )
+                                  (guild.id, '.', 'Unknown', 404, datetime.now()))
             await self.db.commit()
 
     async def _update_guild_configs(self):
-        """Update configurations of guilds that joined while offline."""
+        """Update configurations of guilds that joined or left while offline."""
         guilds = await (await self.db.execute('SELECT * FROM guild')).fetchall()
         for guild_id, prefix, inviter_name, inviter_id, joined_at in guilds:
             if self.get_guild(guild_id):
@@ -225,25 +227,20 @@ class ModLinkBot(commands.AutoShardedBot):
 
         games = await (await self.db.execute('SELECT * FROM game')).fetchall()
         for game_name, filter, guild_id, channel_id in games:
-            if guild := self.get_guild(guild_id):
-                if channel_id is None:
-                    self.guild_configs[guild_id]['games'][game_name] = filter
-                elif guild.get_channel(channel_id):
-                    self.guild_configs[guild_id]['channels'][channel_id][game_name] = filter
-                else:
-                    await self.db.execute('DELETE FROM channel WHERE id = ?', (channel_id,))
-            else:
+            if not (guild := self.get_guild(guild_id)):
                 await self.db.execute('DELETE FROM guild WHERE id = ?', (guild_id,))
+            elif channel_id is None:
+                self.guild_configs[guild_id]['games'][game_name] = filter
+            elif guild.get_channel(channel_id):
+                self.guild_configs[guild_id]['channels'][channel_id][game_name] = filter
+            else:
+                await self.db.execute('DELETE FROM channel WHERE id = ?', (channel_id,))
 
         await self.db.commit()
 
         for guild in self.guilds:
             if guild.id not in self.guild_configs:
-                if self.validate_guild(guild):
-                    self.guild_configs[guild.id] = self._default_guild_config()
-                    await self._update_invite_info(guild)
-                else:
-                    await guild.leave()
+                await self.on_guild_join(guild)
 
     def validate_msg(self, msg):
         """Check if message is valid to be processed.
@@ -269,7 +266,7 @@ class ModLinkBot(commands.AutoShardedBot):
         return (isinstance(guild, discord.Guild)
                 and guild.id not in self.blocked
                 and guild.owner_id not in self.blocked
-                and (not (max := getattr(self.config, 'MAX_GUILDS'))
+                and (not (max := getattr(self.config, 'MAX_GUILDS', False))
                      or len(self.guilds) <= max))
 
     async def get_guild_invite(self, guild):
@@ -312,6 +309,7 @@ class ModLinkBot(commands.AutoShardedBot):
         self.owner_ids.add(self.app_owner_id)
 
         await self._update_guild_configs()
+        await self.change_presence(status=discord.Status.online)
         await self._update_presence()
 
     async def on_message(self, msg):
@@ -332,24 +330,51 @@ class ModLinkBot(commands.AutoShardedBot):
             self.guild_configs[guild.id] = self._default_guild_config()
             await self._update_invite_info(guild)
             await self._update_presence()
-            if webhook_url := getattr(self.config, 'WEBHOOK_URL'):
+            if webhook_url := getattr(self.config, 'WEBHOOK_URL', False):
+                embed = discord.Embed(
+                    description=f":inbox_tray: {self.user.mention} has been added to **{guild.name}**.",
+                    colour=guild.me.colour.value or 14323253)
+                embed.set_thumbnail(url=str(guild.banner_url))
+                embed.timestamp = guild.created_at
+
+                author_icon_url = str(guild.icon_url) or str(guild.splash_url)
+
+                if invite := await self.get_guild_invite(guild):
+                    embed.set_author(name=guild.name,
+                                     url=invite,
+                                     icon_url=author_icon_url)
+                    embed.add_field(name="Invite link", value=invite, inline=False)
+                else:
+                    embed.set_author(name=guild.name, icon_url=author_icon_url)
+
+                if description := guild.description:
+                    embed.add_field(name='Description', value=guild.description, inline=False)
+
+                embed.add_field(name='Member count', value=str(guild.member_count))
+
+                if owner := guild.owner:
+                    embed.set_footer(text=f'Owner: @{owner} | Server created at',
+                                     icon_url=owner.avatar_url)
+                else:
+                    embed.set_footer(text='Server created at')
+
+                guild_config = self.guild_configs[guild.id]
+                if (inviter_id := guild_config['inviter_id']) != 404 and (inviter := guild.get_member(inviter_id)):
+                    embed.description = f":inbox_tray: **@{inviter}** has added {self.user.mention} to **{guild.name}**."
+                    username = str(inviter)
+                    avatar_url = inviter.avatar_url
+                elif owner:
+                    username = str(owner)
+                    avatar_url = owner.avatar_url
+                else:
+                    username = self.user.name
+                    avatar_url = self.user.avatar_url
+
                 try:
-                    webhook = discord.Webhook.partial(*webhook_url.split('/')[-2:], adapter=discord.RequestsWebhookAdapter())
-                    embed = discord.Embed(
-                        description=f"**`+`** {self.user.mention} has been added to **{guild}**.",
-                        colour=guild.me.colour.value or 14323253
-                    )
-                    guild_config = self.guild_configs[guild.id]
-                    if (inviter_id := guild_config['inviter_id']) != 404:
-                        inviter = guild.get_member(inviter_id)
-                        embed.set_author(name=f"{guild_config['inviter_name']} has added {self.user.name} to a server",
-                                         icon_url=inviter.avatar_url if inviter else discord.Embed.Empty)
-                    else:
-                        embed.set_author(name=f"{self.user.name} has been added to a server",
-                                         icon_url=guild.owner.avatar_url if guild.owner else discord.Embed.Empty)
-                    if invite := await self.get_guild_invite(guild):
-                        embed.add_field(name="Invite Link", value=invite, inline=False)
-                    webhook.send(embed=embed)
+                    _send_webhook(webhook_url,
+                                  embed=embed,
+                                  username=username,
+                                  avatar_url=avatar_url)
                 except Exception as error:
                     print(f'{error.__class__.__name__}: {error}', file=stderr)
                     traceback.print_tb(error.__traceback__)
@@ -366,25 +391,44 @@ class ModLinkBot(commands.AutoShardedBot):
             del self.guild_configs[guild.id]
         except KeyError:
             pass
-        await self.db.execute("""DELETE FROM guild
-                                 WHERE id = ?""", (guild.id,))
+        await self.db.execute('DELETE FROM guild WHERE id = ?', (guild.id,))
         await self.db.commit()
-        if (webhook_url := getattr(self.config, 'WEBHOOK_URL')) and self.validate_guild(guild):
+        if (webhook_url := getattr(self.config, 'WEBHOOK_URL', False)) and self.validate_guild(guild):
+            embed = discord.Embed(
+                description=f":outbox_tray: {self.user.mention} has been removed from **{guild.name}**.",
+                colour=14323253)
+            embed.set_thumbnail(url=str(guild.banner_url))
+            embed.set_author(name=guild.name,
+                             icon_url=str(guild.icon_url) or str(guild.splash_url))
+            embed.timestamp = guild.created_at
+
+            if description := guild.description:
+                embed.add_field(name='Description', value=guild.description, inline=False)
+
+            embed.add_field(name='Member count', value=str(guild.member_count))
+
+            if owner := guild.owner:
+                embed.set_footer(text=f'Owner: @{owner} | Server created at',
+                                 icon_url=owner.avatar_url)
+            else:
+                embed.set_footer(text='Server created at')
+
+            guild_config = self.guild_configs[guild.id]
+            if (inviter_id := guild_config['inviter_id']) != 404 and (inviter := guild.get_member(inviter_id)):
+                username = str(inviter)
+                avatar_url = inviter.avatar_url
+            elif owner:
+                username = str(owner)
+                avatar_url = owner.avatar_url
+            else:
+                username = self.user.name
+                avatar_url = self.user.avatar_url
+
             try:
-                webhook = discord.Webhook.partial(*webhook_url.split('/')[-2:], adapter=discord.RequestsWebhookAdapter())
-                embed = discord.Embed(
-                    description=f"**`-`** {self.user.mention} has been removed from **{guild}**.",
-                    colour=14323253
-                )
-                guild_config = self.guild_configs[guild.id]
-                if (inviter_id := guild_config['inviter_id']) != 404:
-                    inviter = guild.get_member(inviter_id)
-                    embed.set_author(name=f"{self.user.name} has been removed from {guild}",
-                                     icon_url=inviter.avatar_url if inviter else discord.Embed.Empty)
-                else:
-                    embed.set_author(name=f"{self.user.name} has been removed from a server",
-                                     icon_url=guild.owner.avatar_url if guild.owner else discord.Embed.Empty)
-                webhook.send(embed=embed)
+                _send_webhook(webhook_url,
+                              embed=embed,
+                              username=username,
+                              avatar_url=avatar_url)
             except Exception as error:
                 print(f'{error.__class__.__name__}: {error}', file=stderr)
                 traceback.print_tb(error.__traceback__)
@@ -430,13 +474,14 @@ class ModLinkBot(commands.AutoShardedBot):
             traceback.print_tb(error.__traceback__)
 
     async def close(self):
-        """"
+        """
         Closes the aiohttp client session as well as the connections with the
         database and Discord.
         """
-        if db := getattr(self, 'db'):
+        if db := getattr(self, 'db', False):
             await db.close()
-        if session := getattr(self, 'session'):
+            delattr(self, 'db')
+        if session := getattr(self, 'session', False):
             await session.close()
         return await super().close()
 
