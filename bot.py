@@ -136,11 +136,11 @@ class ModLinkBot(commands.AutoShardedBot):
         """Initialise bot."""
         super().__init__(command_prefix=_prefix_callable,
                          help_command=ModLinkBotHelpCommand(),
-                         status=discord.Status.idle)
+                         status=discord.Status.idle,
+                         owner_ids=getattr(config, 'OWNER_IDS', set()).copy())
 
         self.config = config
         self.guild_configs = defaultdict(self._default_guild_config)
-        self.owner_ids = getattr(config, 'OWNER_IDS', set()).copy()
         self.blocked = set()
 
         for extension in getattr(config, 'INITIAL_COGS', ()):
@@ -458,11 +458,13 @@ class ModLinkBot(commands.AutoShardedBot):
 
         error = getattr(error, 'original', error)
 
-        if isinstance(error, commands.ArgumentParsingError):
-            await ctx.send(error)
+        if isinstance(error, (commands.ArgumentParsingError, commands.UserInputError)):
+            await ctx.send(embed=feedback_embed(str(error), False))
         elif isinstance(error, commands.CommandOnCooldown):
-            await ctx.send(f"{ctx.author.mention} Command on cooldown. "
-                           f"Try again after {round(error.retry_after, 1)} s.")
+            await ctx.send(embed=feedback_embed(
+                           f"{ctx.author.mention} Command on cooldown. "
+                           f"Try again after {round(error.retry_after, 1)} s.",
+                           False))
         elif isinstance(error, commands.CommandInvokeError):
             original = error.original
             if not isinstance(original, discord.HTTPException):
@@ -480,7 +482,6 @@ class ModLinkBot(commands.AutoShardedBot):
         """
         if db := getattr(self, 'db', False):
             await db.close()
-            delattr(self, 'db')
         if session := getattr(self, 'session', False):
             await session.close()
         return await super().close()

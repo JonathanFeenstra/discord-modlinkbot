@@ -236,7 +236,7 @@ class ModSearch(commands.Cog):
         nexus_config = self.bot.guild_configs[ctx.guild.id]['channels'].get(
             ctx.channel.id, self.bot.guild_configs[ctx.guild.id]['games'])
         if not nexus_config:
-            await ctx.send(
+            return await ctx.send(
                 embed=feedback_embed('No search filters configured.', False)
             )
         queries = find_queries(f'{{{query_text}}}')

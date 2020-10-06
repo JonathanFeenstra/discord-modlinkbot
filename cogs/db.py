@@ -111,8 +111,6 @@ class DB(commands.Cog):
         self.bot.blocked.add(_id)
         await self.bot.db.execute("""INSERT OR IGNORE INTO blocked
                                      VALUES (?)""", (_id,))
-        await self.bot.db.execute("""DELETE FROM guild
-                                     WHERE id = ?""", (_id,))
         await self.bot.db.commit()
 
     async def set_filter(self, config: dict, game_name: str, filter: str):
@@ -131,14 +129,14 @@ class DB(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_ban(self, guild, user):
-        """Block guild if one of the bot's owners is banned.
+        """Block and leave guild if the bot's app owner is banned.
 
         :param discord.Guild guild: the guild the user got banned from
         :param discord.User user: the user that got banned
         """
-        if user.id in self.bot.owner_ids:
-            await guild.leave()
+        if user.id == getattr(self.bot, 'app_owner_id', None):
             await self._block(guild.id)
+            await guild.leave()
 
     @commands.command(aliases=['ssp', 'presets'])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
@@ -317,7 +315,7 @@ class DB(commands.Cog):
         if preset := NEXUS_CONFIG_PRESETS.get(text):
             config.update(preset)
             for game_name, filter in preset.items():
-                await self.bot.db.execute("""INSERT OR REPLACE INTO channel
+                await self.bot.db.execute("""INSERT OR IGNORE INTO channel
                                              VALUES (?, ?)""",
                                           (ctx.channel.id, ctx.guild.id))
                 await self.bot.db.execute("""INSERT OR REPLACE INTO game
