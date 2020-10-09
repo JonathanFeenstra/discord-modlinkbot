@@ -137,7 +137,11 @@ class ModLinkBot(commands.AutoShardedBot):
         super().__init__(command_prefix=_prefix_callable,
                          help_command=ModLinkBotHelpCommand(),
                          status=discord.Status.idle,
-                         owner_ids=getattr(config, 'OWNER_IDS', set()).copy())
+                         owner_ids=getattr(config, 'OWNER_IDS', set()).copy(),
+                         intents=discord.Intents(guilds=True,
+                                                 members=True,
+                                                 bans=True,
+                                                 guild_messages=True))
 
         self.config = config
         self.guild_configs = defaultdict(self._default_guild_config)
@@ -284,11 +288,18 @@ class ModLinkBot(commands.AutoShardedBot):
         if not (guild.channels and guild.me.guild_permissions.create_instant_invite):
             return ''
         if (channel := guild.system_channel or guild.rules_channel or guild.public_updates_channel) and channel.permissions_for(guild.me).create_instant_invite:
-            return await channel.create_invite()
-        else:
-            for channel in guild.channels:
-                if channel.permissions_for(guild.me).create_instant_invite:
-                    return await channel.create_invite()
+            try:
+                invite = await channel.create_invite()
+                return invite
+            except Exception:
+                pass
+        for channel in guild.channels:
+            if channel.permissions_for(guild.me).create_instant_invite:
+                try:
+                    invite = await channel.create_invite()
+                    return invite
+                except Exception:
+                    continue
         return ''
 
     async def on_ready(self):
