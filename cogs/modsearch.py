@@ -183,11 +183,12 @@ class ModSearch(commands.Cog):
                          icon_url='https://images.nexusmods.com/favicons/ReskinOrange/favicon-32x32.png')
         embed.set_footer(text=f'Searched by @{ctx.author}',
                          icon_url=ctx.author.avatar_url)
-        if len(queries) > 20:
-            embed.description = ':x: Too many queries in message (max=20).'
-            return await ctx.send(embed=embed)
 
         queries_per_embed = 25 // (len(nexus_config) + 1)
+        if len(queries) > (max_queries := getattr(self.bot.config, 'MAX_RESULT_EMBEDS', 3) * queries_per_embed):
+            embed.description = f':x: Too many queries in message (max={max_queries}).'
+            return await ctx.send(embed=embed)
+
         for idx in range(0, len(queries), queries_per_embed):
             embed.description = ":mag_right: Searching mods..."
             embed.clear_fields()

@@ -47,9 +47,13 @@ OWNER_IDS = {
     255144776695808001,  # Yoosk (host)
 }
 ```
+Set the maximum number of search result messages per search (optional, 3 by default):
+```python3
+MAX_RESULT_EMBEDS = 3
+```
 Set the maximum number of guilds that the bot can join (optional):
 ```python3
-MAX_GUILDS = 512
+MAX_GUILDS = 1024
 ```
 ### Launch
 Run `bot.py` and [add the bot to the Discord server](https://discordpy.readthedocs.io/en/latest/discord.html#inviting-your-bot). The bot will only stay online as long as the script is running.
