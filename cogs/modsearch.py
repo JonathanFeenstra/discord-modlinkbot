@@ -31,7 +31,7 @@ from html import unescape
 from urllib.parse import quote
 
 import discord
-from aiohttp.web import HTTPException
+from aiohttp import ClientResponseError
 from discord.ext import commands
 
 from .util import feedback_embed
@@ -134,11 +134,11 @@ class ModSearch(commands.Cog):
                         if len(results) > 1:
                             search_result = f"{search_result} | [More results](https://www.nexusmods.com/{results[0]['game_name']}/mods/?RH_ModList=nav:true,home:false,type:0,user_id:0,advfilt:true,include_adult:{include_adult},page_size:20,open:true,search_filename:{parse_query(query).replace(',', '+')}#permalink)"
                         embed.add_field(name=game_name, value=search_result)
-                except HTTPException as e:
+                except ClientResponseError as e:
                     any_results = True
                     embed.add_field(name=game_name,
-                                    value=f"[`{e}`]({e.url})\n[Server Status]"
-                                          "(https://www.isitdownrightnow.com/nexusmods.com.html)"
+                                    value=f"[`Error {e.status}: {e.message}`]({e.request_info.real_url})\n"
+                                          "[Server Status](https://www.isitdownrightnow.com/nexusmods.com.html)"
                                           f" | {global_search}",
                                     inline=False)
                 except Exception as e:
@@ -159,7 +159,7 @@ class ModSearch(commands.Cog):
         :param filter: Nexus Mods search API filter
         :return: search results
         :rtype: list[dict]
-        :raise aiohttp.web.HTTPException: if status code is not 200
+        :raise aiohttp.ClientResponseError: if status code is not 200
         """
         async with self.bot.session.get(
                 f"https://search.nexusmods.com/mods?terms={parse_query(query)}{filter}",
@@ -168,7 +168,11 @@ class ModSearch(commands.Cog):
                 response_json = await res.json()
                 return response_json.get('results')
             else:
-                raise HTTPException(status=res.status, reason=res.reason, url=res.url)
+                raise ClientResponseError(request_info=res.request_info,
+                                          status=res.status,
+                                          message=res.reason,
+                                          headers=res.headers,
+                                          history=res.history)
 
     async def send_nexus_results(self, ctx, queries, nexus_config):
         """Send Nexus Mods query results.
