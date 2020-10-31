@@ -109,11 +109,11 @@ class Util(commands.Cog):
         :param discord.ext.Commands.Context ctx: event context
         """
         me = ctx.guild.me
-        invite_link = f'https://discordapp.com/oauth2/authorize?client_id={me.id}&permissions=67202209&scope=bot'
+        invite_link = f'https://discordapp.com/oauth2/authorize?client_id={me.id}&permissions=672021779&scope=bot'
         embed = discord.Embed(
             title=f':link: Add {me.name} to your server',
             description=f'Use [this link]({invite_link}) to add {me.mention} to your server. '
-                        "The permissions 'Manage Server', 'Create Invite', 'Change Nickname', "
+                        "The permissions 'Create Invite', 'Change Nickname', "
                         "'View Audit Log' and 'Manage Messages' are optional. Use `.help` for "
                         "setup instructions.",
             colour=me.colour.value or 14323253)

@@ -120,7 +120,7 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
             name='Links',
             value='[GitHub](https://github.com/JonathanFeenstra/discord-modlinkbot)'
                   ' | [Add to your server](https://discordapp.com/oauth2/authorize?client_id='
-                  f'{bot.user.id}&permissions=67202209&scope=bot)',
+                  f'{bot.user.id}&permissions=67202177&scope=bot)',
             inline=False)
         embed.set_footer(text=f'Prompted by @{ctx.author}', icon_url=ctx.author.avatar_url)
 
