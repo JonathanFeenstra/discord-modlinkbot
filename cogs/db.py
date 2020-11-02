@@ -21,9 +21,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
-import re
 from collections import defaultdict
-from datetime import datetime
 
 import discord
 from discord.ext import commands
@@ -447,7 +445,7 @@ class DB(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(aliases=['blacklist'])
-    @commands.check(commands.is_owner())
+    @commands.is_owner()
     @delete_msg
     async def block(self, ctx, _id: int):
         """Block a guild or user from using the bot.
@@ -461,7 +459,7 @@ class DB(commands.Cog):
         await ctx.send(embed=feedback_embed(f"Blocked ID `{_id}`."))
 
     @commands.command(aliases=['unblacklist'])
-    @commands.check(commands.is_owner())
+    @commands.is_owner()
     async def unblock(self, ctx, _id: int):
         """Unblock a guild or user from using the bot.
 
@@ -499,7 +497,7 @@ class DB(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(aliases=['admin'])
-    @commands.check(commands.is_owner())
+    @commands.is_owner()
     @delete_msg
     async def makeadmin(self, ctx, user_id: int):
         """Make user a bot admin.
@@ -514,7 +512,7 @@ class DB(commands.Cog):
         await ctx.send(embed=feedback_embed(f'Added {user_id} as admin.'))
 
     @commands.command(aliases=['rmadmin'])
-    @commands.check(commands.is_owner())
+    @commands.is_owner()
     async def deladmin(self, ctx, user_id: int):
         """Remove user as bot admin if not app owner.
 
@@ -526,7 +524,7 @@ class DB(commands.Cog):
         try:
             self.bot.owner_ids.remove(user_id)
             await self.bot.db.execute("""DELETE FROM admin
-                                         WHERE user_id = ?""", (user_id,))
+                                         WHERE id = ?""", (user_id,))
             await self.bot.db.commit()
         except KeyError:
             await ctx.send(embed=feedback_embed(f'User `{user_id}` was not an admin.', False))

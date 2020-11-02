@@ -118,7 +118,7 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
                               colour=ctx.guild.me.colour.value or 14323253)
         embed.add_field(
             name='Links',
-            value='[GitHub](https://github.com/JonathanFeenstra/discord-modlinkbot)'
+            value='[Discord Bot List](https://top.gg/bot/665861255051083806) | [GitHub](https://github.com/JonathanFeenstra/discord-modlinkbot)'
                   ' | [Add to your server](https://discordapp.com/oauth2/authorize?client_id='
                   f'{bot.user.id}&permissions=67202177&scope=bot)',
             inline=False)
@@ -469,7 +469,7 @@ class ModLinkBot(commands.AutoShardedBot):
 
         error = getattr(error, 'original', error)
 
-        if isinstance(error, (commands.ArgumentParsingError, commands.UserInputError)):
+        if isinstance(error, (commands.ArgumentParsingError, commands.UserInputError, commands.CheckFailure)):
             await ctx.send(embed=feedback_embed(str(error), False))
         elif isinstance(error, commands.CommandOnCooldown):
             await ctx.send(embed=feedback_embed(
@@ -503,7 +503,7 @@ if __name__ == '__main__':
     bot = ModLinkBot()
 
     @bot.command(aliases=['loadcog'])
-    @commands.check(commands.is_owner())
+    @commands.is_owner()
     async def load(ctx, *, cog: str):
         """Load extension (bot admin only).
 
@@ -521,7 +521,7 @@ if __name__ == '__main__':
         await ctx.send(embed=feedback_embed(f"Succesfully loaded '{cog}'."))
 
     @bot.command(aliases=['unloadcog'])
-    @commands.check(commands.is_owner())
+    @commands.is_owner()
     async def unload(ctx, *, cog: str):
         """Unload extension (bot admin only).
 
@@ -533,7 +533,7 @@ if __name__ == '__main__':
         await ctx.send(embed=feedback_embed(f"Succesfully unloaded '{cog}'."))
 
     @bot.command(aliases=['reloadcog'])
-    @commands.check(commands.is_owner())
+    @commands.is_owner()
     async def reload(ctx, *, cog: str):
         """Reload extension (bot admin only).
 
