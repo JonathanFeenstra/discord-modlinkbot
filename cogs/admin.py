@@ -72,6 +72,7 @@ class Admin(commands.Cog):
 
         :param discord.ext.Commands.Context ctx: event context
         """
+        await ctx.send(embed=feedback_embed('Shutting down.'))
         print(f"{self.bot.user.name} has been logged out by {ctx.author}.")
         await self.bot.close()
 

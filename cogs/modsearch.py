@@ -115,7 +115,8 @@ class ModSearch(commands.Cog):
         for query in queries:
             shown_query = repr(WHITESPACE.sub(' ', query))
             quoted_query = quote(query)
-            global_search = f"[Nexus Mods Global Search](https://www.nexusmods.com/search/?gsearch={quoted_query}&gsearchtype=mods) | [DuckDuckGo Search](https://duckduckgo.com/?q={quoted_query})"
+            global_search = (f"[Global Search](https://www.nexusmods.com/search/?gsearch={quoted_query}&gsearchtype=mods) "
+                             f"| [DuckDuckGo Search](https://duckduckgo.com/?q={quoted_query})")
             embed.add_field(name="Search results for:",
                             value=f"**{shown_query}**",
                             inline=False)
@@ -132,7 +133,9 @@ class ModSearch(commands.Cog):
                             mod_name = f"{mod_name[:125]}..."
                         search_result = f"[{mod_name}](https://nexusmods.com{mod['url']})"
                         if len(results) > 1:
-                            search_result = f"{search_result} | [More results](https://www.nexusmods.com/{results[0]['game_name']}/mods/?RH_ModList=nav:true,home:false,type:0,user_id:0,advfilt:true,include_adult:{include_adult},page_size:20,open:true,search_filename:{parse_query(query).replace(',', '+')}#permalink)"
+                            search_result = (f"{search_result} | [More results](https://www.nexusmods.com/"
+                                             f"{results[0]['game_name']}/mods/?RH_ModList=include_adult:{include_adult},"
+                                             f"open:true,search_filename:{parse_query(query).replace(',', '+')}#permalink)")
                         embed.add_field(name=game_name, value=search_result)
                 except ClientResponseError as e:
                     any_results = True
@@ -147,7 +150,7 @@ class ModSearch(commands.Cog):
                                     value=f"`{e.__class__.__name__}: {e}`\n{global_search}",
                                     inline=False)
             if not any_results:
-                embed.add_field(name=f"No results.",
+                embed.add_field(name="No results.",
                                 value=global_search,
                                 inline=False)
         return embed
@@ -217,12 +220,7 @@ class ModSearch(commands.Cog):
         nexus_config = self.bot.guild_configs[ctx.guild.id]['channels'].get(
             ctx.channel.id, self.bot.guild_configs[ctx.guild.id]['games'])
 
-        if ctx.valid or not nexus_config:
-            return
-
-        queries = find_queries(msg.content)
-
-        if not queries:
+        if ctx.valid or not nexus_config or not (queries := find_queries(msg.content)):
             return
 
         if not ctx.channel.permissions_for(ctx.me).embed_links:
@@ -244,8 +242,7 @@ class ModSearch(commands.Cog):
             return await ctx.send(
                 embed=feedback_embed('No search filters configured.', False)
             )
-        queries = find_queries(f'{{{query_text}}}')
-        if queries:
+        if queries := find_queries(f'{{{query_text}}}'):
             await self.send_nexus_results(ctx, queries, nexus_config)
         else:
             await ctx.send(embed=feedback_embed('Invalid query.', False))

@@ -144,20 +144,17 @@ class Util(commands.Cog):
 
         :param discord.ext.Commands.Context ctx: event context
         """
-        guilds_info = [f"```\n{'Name': <32}Members  Joined (d/m/y)"]
+        guilds_info = [f"{'Name': <32}Members  Joined (d/m/y)"]
 
-        for guild in self.bot.guilds:
+        for guild in self.bot.guilds[:50]:
             name = guild.name if len(guild.name) <= 30 else f'{guild.name[:27]}...'
             member_count = '{0:,}'.format(guild.member_count).replace(',', ' ')
             join_date = self.bot.guild_configs[guild.id]['joined_at'].strftime('%d/%m/%Y')
             guilds_info.append(f'{name: <32}{member_count: <9}{join_date}')
 
-        description = '\n'.join(guilds_info) + '```'
-        if len(description) > 2048:
-            description = f'{description[:2042]}...```'
-
+        description = discord.utils.escape_markdown('\n'.join(guilds_info))
         embed = discord.Embed(title=':busts_in_silhouette: Servers',
-                              description=description,
+                              description=f"```{description if len(description) < 2048 else description[2045] + '...'}```",
                               colour=ctx.guild.me.colour.value or 14323253)
         embed.set_footer(text=f'Prompted by @{ctx.author}', icon_url=ctx.author.avatar_url)
         await ctx.send(embed=embed)

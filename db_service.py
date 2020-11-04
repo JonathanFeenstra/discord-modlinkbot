@@ -40,8 +40,6 @@ class DBService:
             IF NOT EXISTS guild (
                 id INTEGER NOT NULL PRIMARY KEY,
                 prefix TEXT DEFAULT '.' NOT NULL,
-                inviter_name TEXT DEFAULT 'Unknown' NOT NULL,
-                inviter_id INTEGER DEFAULT 404 NOT NULL,
                 joined_at TIMESTAMP NOT NULL
             )
         """)

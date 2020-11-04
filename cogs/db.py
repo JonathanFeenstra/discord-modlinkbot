@@ -111,19 +111,54 @@ class DB(commands.Cog):
                                      VALUES (?)""", (_id,))
         await self.bot.db.commit()
 
-    async def set_filter(self, config: dict, game_name: str, filter: str):
-        """Set `filter` for `game` in `config`.
+    async def set_filter(self, ctx, config: dict, args_text: str, destination: str, channel_id=None):
+        """Parse `args_text` to set filter for game in `config`.
 
+        :param discord.ext.Commands.Context ctx: event context
         :param dict config: configuration dict
-        :param str game_name: name of game to set filter for
-        :param str filter: filter to set
-        :raise ValueError: if a value is too long
+        :param str args_text: command arguments text
+        :param str destination: game filter destination
+        :param channel_id: channel ID or None
         """
+        if preset := NEXUS_CONFIG_PRESETS.get(args_text):
+            config.update(preset)
+            if channel_id:
+                await self.bot.db.execute("""INSERT OR IGNORE INTO channel
+                                             VALUES (?, ?)""",
+                                          (channel_id, ctx.guild.id))
+            for game_name, filter in preset.items():
+                await self.bot.db.execute("""INSERT OR REPLACE INTO game
+                                             VALUES (?, ?, ?, ?)""",
+                                          (game_name, filter, ctx.guild.id, channel_id))
+                await ctx.send(embed=feedback_embed(
+                    "Default Nexus Mods search API filter set for "
+                    f"`{game_name}` to: `{filter}` in {destination}."))
+            return await self.bot.db.commit()
+
+        if len(terms := args_text.split()) < 2:
+            return await ctx.send(embed=feedback_embed("Invalid arguments.", False))
+
+        game_name, filter = ' '.join(terms[:-1]).replace('`', "'"), terms[-1].replace('`', "'")
         if len(game_name) > 100:
-            raise ValueError("Game name too long (max length = 100).")
-        elif len(filter) > 1024:
-            raise ValueError("Filter too long (max length = 1024).")
-        config[game_name] = filter
+            return await ctx.send(embed=feedback_embed("Game name too long (max length = 100).", False))
+        if len(filter) > 1024:
+            return await ctx.send(embed=feedback_embed("Filter too long (max length = 1024).", False))
+
+        if game_name in config or len(config) <= 5:
+            config[game_name] = filter
+            if channel_id:
+                await self.bot.db.execute("""INSERT OR REPLACE INTO channel
+                                             VALUES (?, ?)""",
+                                          (channel_id, ctx.guild.id))
+            await self.bot.db.execute("""INSERT OR REPLACE INTO game
+                                         VALUES (?, ?, ?, ?)""",
+                                      (game_name, filter, ctx.guild.id, channel_id))
+            await self.bot.db.commit()
+            await ctx.send(embed=feedback_embed(
+                "Default Nexus Mods search API filter set for "
+                f"`{game_name}` to: `{filter}` in {destination}."))
+        else:
+            await ctx.send(embed=feedback_embed("Maximum of 5 games exceeded.", False))
 
     @commands.Cog.listener()
     async def on_member_ban(self, guild, user):
@@ -183,7 +218,7 @@ class DB(commands.Cog):
 
         :param discord.ext.Commands.Context ctx: event context
         """
-        embed = discord.Embed(colour=discord.Colour.orange())
+        embed = discord.Embed(colour=14323253)
         embed.set_author(name='Nexus Mods Search Configuration',
                          url='https://www.nexusmods.com/',
                          icon_url='https://images.nexusmods.com/favicons/ReskinOrange/favicon-32x32.png')
@@ -193,13 +228,13 @@ class DB(commands.Cog):
                             value=f'{ctx.channel.mention}',
                             inline=False)
             for game_name, filter in games.items():
-                embed.add_field(name=game_name, value=f'`{filter}`', inline=False)
+                embed.add_field(name=game_name, value=f"`{filter}`", inline=False)
         if games := self.bot.guild_configs[ctx.guild.id]['games']:
             embed.add_field(name='Server default game filters in:',
                             value=f'**{ctx.guild.name}**',
                             inline=False)
             for game_name, filter in games.items():
-                embed.add_field(name=game_name, value=f'`{filter}`', inline=False)
+                embed.add_field(name=game_name, value=f"`{filter}`", inline=False)
         elif not embed.fields:
             embed.description = ':x: No Nexus Mods search filters configured in this channel/server.'
         await ctx.send(embed=embed)
@@ -207,7 +242,7 @@ class DB(commands.Cog):
     @commands.command(aliases=['setguildfilter', 'setgf', 'setsf'])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
-    async def setserverfilter(self, ctx, *, text: str):
+    async def setserverfilter(self, ctx, *, args_text: str):
         """Set default Nexus Mods search API filter for game in server.
 
         Requires the 'Manage Server' permission or bot admin permissions.
@@ -237,47 +272,17 @@ class DB(commands.Cog):
         Command prefixes may vary per server.
 
         :param discord.ext.Commands.Context ctx: event context
-        :param str text: text containing game name and filter or preset name
+        :param str args_text: text containing game name and filter or preset name
         """
-        config = self.bot.guild_configs[ctx.guild.id]['games']
-        if preset := NEXUS_CONFIG_PRESETS.get(text):
-            config.update(preset)
-            for game_name, filter in preset.items():
-                await self.bot.db.execute("""INSERT OR REPLACE INTO game
-                                             VALUES (?, ?, ?, ?)""",
-                                          (game_name, filter, ctx.guild.id, None))
-                await ctx.send(embed=feedback_embed(
-                    "Default Nexus Mods search API filter set for "
-                    f"`{game_name}` to: `{filter}` in **{ctx.guild.name}**."))
-            return await self.bot.db.commit()
-
-        terms = text.split()
-        if len(terms) < 2:
-            return await ctx.send(embed=feedback_embed(
-                "Invalid ",
-                False))
-
-        game_name, filter = ' '.join(terms[:-1]), terms[-1]
-        if game_name in config or len(config) <= 5:
-            try:
-                await self.set_filter(config, game_name, filter)
-            except ValueError as error:
-                await ctx.send(embed=feedback_embed(str(error), False))
-            else:
-                await self.bot.db.execute("""INSERT OR REPLACE INTO game
-                                             VALUES (?, ?, ?, ?)""",
-                                          (game_name, filter, ctx.guild.id, None))
-                await self.bot.db.commit()
-                await ctx.send(embed=feedback_embed(
-                    "Default Nexus Mods search API filter set for "
-                    f"`{game_name}` to: `{filter}` in **{ctx.guild.name}**."))
-        else:
-            await ctx.send(embed=feedback_embed("Maximum of 5 games per guild exceeded.", False))
+        await self.set_filter(ctx,
+                              self.bot.guild_configs[ctx.guild.id]['games'],
+                              args_text,
+                              f'**{discord.utils.escape_markdown(ctx.guild.name)}**')
 
     @commands.command(aliases=['setchf'])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.channel)
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
-    async def setchannelfilter(self, ctx, *, text: str):
+    async def setchannelfilter(self, ctx, *, args_text: str):
         """Set Nexus Mods search API filter for game in channel.
 
         Requires the 'Manage Server' permission or bot admin permissions.
@@ -307,50 +312,13 @@ class DB(commands.Cog):
         Command prefixes may vary per server.
 
         :param discord.ext.Commands.Context ctx: event context
-        :param str text: text containing game name and filter
+        :param str args_text: text containing game name and filter
         """
-        config = self.bot.guild_configs[ctx.guild.id]['channels'][ctx.channel.id]
-        if preset := NEXUS_CONFIG_PRESETS.get(text):
-            config.update(preset)
-            for game_name, filter in preset.items():
-                await self.bot.db.execute("""INSERT OR IGNORE INTO channel
-                                             VALUES (?, ?)""",
-                                          (ctx.channel.id, ctx.guild.id))
-                await self.bot.db.execute("""INSERT OR REPLACE INTO game
-                                             VALUES (?, ?, ?, ?)""",
-                                          (game_name, filter, ctx.guild.id, ctx.channel.id))
-                await ctx.send(embed=feedback_embed(
-                    "Nexus Mods search API filter set for "
-                    f"`{game_name}` to: `{filter}` in {ctx.channel.mention}."))
-            return await self.bot.db.commit()
-
-        terms = text.split()
-        if len(terms) < 2:
-            return await ctx.send(embed=feedback_embed(
-                "Enter the game name and filter.\nExample usage: "
-                f"`.setchf Skyrim Special Edition "
-                "&game_id=1704&include_adult=1&timeout=15000`",
-                False))
-
-        game_name, filter = ' '.join(terms[:-1]), terms[-1]
-        if game_name in config or len(config) <= 5:
-            try:
-                await self.set_filter(config, game_name, filter)
-            except ValueError as error:
-                await ctx.send(embed=feedback_embed(str(error), False))
-            else:
-                await self.bot.db.execute("""INSERT OR REPLACE INTO channel
-                                             VALUES (?, ?)""",
-                                          (ctx.channel.id, ctx.guild.id))
-                await self.bot.db.execute("""INSERT OR REPLACE INTO game
-                                             VALUES (?, ?, ?, ?)""",
-                                          (game_name, filter, ctx.guild.id, ctx.channel.id))
-                await self.bot.db.commit()
-                await ctx.send(embed=feedback_embed(
-                    "Nexus Mods search API filter set for "
-                    f"`{game_name}` to: `{filter}` in {ctx.channel.mention}."))
-        else:
-            await ctx.send(embed=feedback_embed("Maximum of 5 games per channel exceeded.", False))
+        await self.set_filter(ctx,
+                              self.bot.guild_configs[ctx.guild.id]['channels'][ctx.channel.id],
+                              args_text,
+                              ctx.channel.mention,
+                              ctx.channel.id)
 
     @commands.command(aliases=['delsf', 'rmsf'])
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
@@ -364,8 +332,7 @@ class DB(commands.Cog):
         try:
             del self.bot.guild_configs[ctx.guild.id]['games'][game_name]
         except KeyError:
-            await ctx.send(embed=feedback_embed(
-                f"Game `{game_name}` not found in server filters.", False))
+            await ctx.send(embed=feedback_embed(f"Game `{game_name}` not found in server filters.", False))
         else:
             await self.bot.db.execute("""DELETE FROM game
                                          WHERE guild_id = ? AND channel_id = ? AND name = ?""",
@@ -520,7 +487,7 @@ class DB(commands.Cog):
         :param int user_id: ID of user to remove as admin
         """
         if user_id == getattr(self.bot, 'app_owner_id', None):
-            return await ctx.send(embed=feedback_embed(f'Cannot remove app owner.', False))
+            return await ctx.send(embed=feedback_embed('Cannot remove app owner.', False))
         try:
             self.bot.owner_ids.remove(user_id)
             await self.bot.db.execute("""DELETE FROM admin

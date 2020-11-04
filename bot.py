@@ -24,7 +24,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import traceback
 from collections import defaultdict
 from datetime import datetime
-from itertools import groupby
 from sys import stderr
 
 import discord
@@ -48,6 +47,7 @@ def _prefix_callable(bot, msg):
         return commands.when_mentioned_or(guild_config.get('prefix', '.'))(bot, msg)
     return commands.when_mentioned_or('.')(bot, msg)
 
+
 def _send_webhook(webhook_url: str, **kwargs):
     """Send a message using the specified webhook.
 
@@ -56,6 +56,7 @@ def _send_webhook(webhook_url: str, **kwargs):
     webhook = discord.Webhook.partial(*webhook_url.split('/')[-2:],
                                       adapter=discord.RequestsWebhookAdapter())
     return webhook.send(**kwargs)
+
 
 class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
     """Help command for modlinkbot."""
@@ -118,8 +119,9 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
                               colour=ctx.guild.me.colour.value or 14323253)
         embed.add_field(
             name='Links',
-            value='[Discord Bot List](https://top.gg/bot/665861255051083806) | [GitHub](https://github.com/JonathanFeenstra/discord-modlinkbot)'
-                  ' | [Add to your server](https://discordapp.com/oauth2/authorize?client_id='
+            value='[Discord Bot List](https://top.gg/bot/665861255051083806) '
+                  '| [GitHub](https://github.com/JonathanFeenstra/discord-modlinkbot) '
+                  '| [Add to your server](https://discordapp.com/oauth2/authorize?client_id='
                   f'{bot.user.id}&permissions=67202177&scope=bot)',
             inline=False)
         embed.set_footer(text=f'Prompted by @{ctx.author}', icon_url=ctx.author.avatar_url)
@@ -166,21 +168,14 @@ class ModLinkBot(commands.AutoShardedBot):
             return {'prefix': '.',
                     'games': defaultdict(dict),
                     'channels': defaultdict(dict),
-                    'inviter_name': 'Unknown',
-                    'inviter_id': 404,
                     'joined_at': datetime.now()}
         return dict(**kwargs)
 
     async def _update_presence(self):
         """Update the bot's presence with the number of guilds."""
-        if (guild_count := len(self.guilds)) == 1:
-            await self.change_presence(activity=discord.Activity(
-                    name="messages in 1 server",
-                    type=discord.ActivityType.watching))
-        else:
-            await self.change_presence(activity=discord.Activity(
-                    name=f"messages in {guild_count} servers",
-                    type=discord.ActivityType.watching))
+        await self.change_presence(activity=discord.Activity(
+                name="messages in 1 server" if (guild_count := len(self.guilds)) == 1 else f"messages in {guild_count} servers",
+                type=discord.ActivityType.watching))
 
     async def _update_invite_info(self, guild, limit=50):
         """Update guild configuration with data of bot invite when found.
@@ -199,29 +194,21 @@ class ModLinkBot(commands.AutoShardedBot):
                         guild_config['inviter_name'] = str(log_entry.user)
                         guild_config['inviter_id'] = log_entry.user.id
                         guild_config['joined_at'] = log_entry.created_at
-                        await self.db.execute(
-                            """INSERT OR IGNORE INTO guild
-                               VALUES (?, ?, ?, ?, ?)""",
-                            (guild.id, '.', str(log_entry.user), log_entry.user.id, log_entry.created_at))
-                        await self.db.commit()
                     break
-        else:
-            await self.db.execute("""INSERT OR IGNORE INTO guild
-                                    VALUES (?, ?, ?, ?, ?)""",
-                                  (guild.id, '.', 'Unknown', 404, datetime.now()))
-            await self.db.commit()
+        await self.db.execute("""INSERT OR IGNORE INTO guild
+                                VALUES (?, ?, ?)""",
+                              (guild.id, '.', guild_config.get('joined_at', datetime.now())))
+        await self.db.commit()
 
     async def _update_guild_configs(self):
         """Update configurations of guilds that joined or left while offline."""
         guilds = await (await self.db.execute('SELECT * FROM guild')).fetchall()
-        for guild_id, prefix, inviter_name, inviter_id, joined_at in guilds:
+        for guild_id, prefix, joined_at in guilds:
             if self.get_guild(guild_id):
                 self.guild_configs.update({
                     guild_id: {'prefix': prefix,
                                'games': defaultdict(dict),
                                'channels': defaultdict(dict),
-                               'inviter_name': inviter_name,
-                               'inviter_id': inviter_id,
                                'joined_at': joined_at}
                 })
             else:
@@ -289,15 +276,13 @@ class ModLinkBot(commands.AutoShardedBot):
             return ''
         if (channel := guild.system_channel or guild.rules_channel or guild.public_updates_channel) and channel.permissions_for(guild.me).create_instant_invite:
             try:
-                invite = await channel.create_invite()
-                return invite
+                return (await channel.create_invite()).url
             except Exception:
                 pass
         for channel in guild.channels:
             if channel.permissions_for(guild.me).create_instant_invite:
                 try:
-                    invite = await channel.create_invite()
-                    return invite
+                    return (await channel.create_invite()).url
                 except Exception:
                     continue
         return ''
@@ -359,18 +344,18 @@ class ModLinkBot(commands.AutoShardedBot):
                     embed.set_author(name=guild.name, icon_url=author_icon_url)
 
                 if description := guild.description:
-                    embed.add_field(name='Description', value=guild.description, inline=False)
+                    embed.add_field(name='Description', value=description, inline=False)
 
                 embed.add_field(name='Member count', value=str(guild.member_count))
 
                 if owner := guild.owner:
-                    embed.set_footer(text=f'Owner: @{owner} | Server created at',
+                    embed.set_footer(text=f'Owner: @{owner} | Server created',
                                      icon_url=owner.avatar_url)
                 else:
                     embed.set_footer(text='Server created at')
 
                 guild_config = self.guild_configs[guild.id]
-                if (inviter_id := guild_config['inviter_id']) != 404 and (inviter := guild.get_member(inviter_id)):
+                if (inviter_id := guild_config.get('inviter_id')) and (inviter := guild.get_member(inviter_id)):
                     embed.description = f":inbox_tray: **@{inviter}** has added {self.user.mention} to **{guild.name}**."
                     username = str(inviter)
                     avatar_url = inviter.avatar_url
@@ -419,13 +404,13 @@ class ModLinkBot(commands.AutoShardedBot):
             embed.add_field(name='Member count', value=str(guild.member_count))
 
             if owner := guild.owner:
-                embed.set_footer(text=f'Owner: @{owner} | Server created at',
+                embed.set_footer(text=f'Owner: @{owner} | Server created',
                                  icon_url=owner.avatar_url)
             else:
                 embed.set_footer(text='Server created at')
 
             guild_config = self.guild_configs[guild.id]
-            if (inviter_id := guild_config['inviter_id']) != 404 and (inviter := guild.get_member(inviter_id)):
+            if (inviter_id := guild_config.get('inviter_id')) and (inviter := guild.get_member(inviter_id)):
                 username = str(inviter)
                 avatar_url = inviter.avatar_url
             elif owner:
