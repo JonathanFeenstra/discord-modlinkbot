@@ -24,15 +24,17 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import traceback
 from collections import defaultdict
 from datetime import datetime
+from functools import partial
+from sqlite3 import PARSE_COLNAMES, PARSE_DECLTYPES
 from sys import stderr
 
 import discord
 from aiohttp import ClientSession
+from aiosqlite import connect
 from discord.ext import commands
 
 import config
 from cogs.util import SendErrorFeedback, feedback_embed
-from db_service import DBService
 
 __docformat__ = 'restructedtext'
 
@@ -53,9 +55,8 @@ def _send_webhook(webhook_url: str, **kwargs):
 
     :param str webhook_url: URL of the webhook to send to
     """
-    webhook = discord.Webhook.partial(*webhook_url.split('/')[-2:],
-                                      adapter=discord.RequestsWebhookAdapter())
-    return webhook.send(**kwargs)
+    return discord.Webhook.partial(*webhook_url.split('/')[-2:],
+                                   adapter=discord.RequestsWebhookAdapter()).send(**kwargs)
 
 
 class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
@@ -148,6 +149,8 @@ class ModLinkBot(commands.AutoShardedBot):
         self.config = config
         self.guild_configs = defaultdict(self._default_guild_config)
         self.blocked = set()
+        self.db_connect = partial(connect, getattr(self.config, 'DB_PATH', 'modlinkbot.db'),
+                                  detect_types=PARSE_DECLTYPES | PARSE_COLNAMES)
 
         for extension in getattr(config, 'INITIAL_COGS', ()):
             try:
@@ -155,6 +158,48 @@ class ModLinkBot(commands.AutoShardedBot):
             except Exception as e:
                 print(f'Failed to load extension {extension}: {e}', file=stderr)
                 traceback.print_exc()
+
+    async def _create_db(self):
+        """"Create database."""
+        async with self.db_connect() as db:
+            await db.execute('PRAGMA foreign_keys = ON')
+            await db.execute("""
+                CREATE TABLE
+                IF NOT EXISTS guild (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    prefix TEXT DEFAULT '.' NOT NULL,
+                    joined_at TIMESTAMP NOT NULL
+                )
+            """)
+            await db.execute("""
+                CREATE TABLE
+                IF NOT EXISTS channel (
+                    id INTEGER NOT NULL PRIMARY KEY,
+                    guild_id INTEGER NOT NULL REFERENCES guild ON DELETE CASCADE
+                )
+            """)
+            await db.execute("""
+                CREATE TABLE
+                IF NOT EXISTS game (
+                    name TEXT NOT NULL,
+                    filter TEXT,
+                    guild_id INTEGER NOT NULL REFERENCES guild ON DELETE CASCADE,
+                    channel_id INTEGER REFERENCES channel ON DELETE CASCADE
+                )
+            """)
+            await db.execute("""
+                CREATE TABLE
+                IF NOT EXISTS blocked (
+                    id INTEGER NOT NULL PRIMARY KEY
+                )
+            """)
+            await db.execute("""
+                CREATE TABLE
+                IF NOT EXISTS admin (
+                    id INTEGER NOT NULL PRIMARY KEY
+                )
+            """)
+            await db.commit()
 
     def _default_guild_config(self, **kwargs):
         """
@@ -174,7 +219,7 @@ class ModLinkBot(commands.AutoShardedBot):
     async def _update_presence(self):
         """Update the bot's presence with the number of guilds."""
         await self.change_presence(activity=discord.Activity(
-                name="messages in 1 server" if (guild_count := len(self.guilds)) == 1 else f"messages in {guild_count} servers",
+                name=f"messages in {'1 server' if (guild_count := len(self.guilds)) == 1 else f'{guild_count} servers'}",
                 type=discord.ActivityType.watching))
 
     async def _update_invite_info(self, guild, limit=50):
@@ -195,39 +240,39 @@ class ModLinkBot(commands.AutoShardedBot):
                         guild_config['inviter_id'] = log_entry.user.id
                         guild_config['joined_at'] = log_entry.created_at
                     break
-        await self.db.execute("""INSERT OR IGNORE INTO guild
-                                VALUES (?, ?, ?)""",
-                              (guild.id, '.', guild_config.get('joined_at', datetime.now())))
-        await self.db.commit()
+        async with self.db_connect() as db:
+            await db.execute('INSERT OR IGNORE INTO guild VALUES (?, ?, ?)',
+                             (guild.id, '.', guild_config.get('joined_at', datetime.now())))
+            await db.commit()
 
     async def _update_guild_configs(self):
         """Update configurations of guilds that joined or left while offline."""
-        guilds = await (await self.db.execute('SELECT * FROM guild')).fetchall()
-        for guild_id, prefix, joined_at in guilds:
-            if self.get_guild(guild_id):
-                self.guild_configs.update({
-                    guild_id: {'prefix': prefix,
-                               'games': defaultdict(dict),
-                               'channels': defaultdict(dict),
-                               'joined_at': joined_at}
-                })
-            else:
-                await self.db.execute('DELETE FROM guild WHERE id = ?', (guild_id,))
-
-        await self.db.commit()
-
-        games = await (await self.db.execute('SELECT * FROM game')).fetchall()
-        for game_name, filter, guild_id, channel_id in games:
-            if not (guild := self.get_guild(guild_id)):
-                await self.db.execute('DELETE FROM guild WHERE id = ?', (guild_id,))
-            elif channel_id is None:
-                self.guild_configs[guild_id]['games'][game_name] = filter
-            elif guild.get_channel(channel_id):
-                self.guild_configs[guild_id]['channels'][channel_id][game_name] = filter
-            else:
-                await self.db.execute('DELETE FROM channel WHERE id = ?', (channel_id,))
-
-        await self.db.commit()
+        async with self.db_connect() as db:
+            async with db.execute('SELECT * FROM guild') as cur:
+                guilds = await cur.fetchall()
+            for guild_id, prefix, joined_at in guilds:
+                if self.get_guild(guild_id):
+                    self.guild_configs.update({
+                        guild_id: {'prefix': prefix,
+                                   'games': defaultdict(dict),
+                                   'channels': defaultdict(dict),
+                                   'joined_at': joined_at}
+                    })
+                else:
+                    await db.execute('DELETE FROM guild WHERE id = ?', (guild_id,))
+                await db.commit()
+            async with db.execute('SELECT * FROM game') as cur:
+                games = await cur.fetchall()
+            for game_name, filter, guild_id, channel_id in games:
+                if not (guild := self.get_guild(guild_id)):
+                    await db.execute('DELETE FROM guild WHERE id = ?', (guild_id,))
+                elif channel_id is None:
+                    self.guild_configs[guild_id]['games'][game_name] = filter
+                elif guild.get_channel(channel_id):
+                    self.guild_configs[guild_id]['channels'][channel_id][game_name] = filter
+                else:
+                    await db.execute('DELETE FROM channel WHERE id = ?', (channel_id,))
+            await db.commit()
 
         for guild in self.guilds:
             if guild.id not in self.guild_configs:
@@ -274,7 +319,8 @@ class ModLinkBot(commands.AutoShardedBot):
                     return invite.url
         if not (guild.channels and guild.me.guild_permissions.create_instant_invite):
             return ''
-        if (channel := guild.system_channel or guild.rules_channel or guild.public_updates_channel) and channel.permissions_for(guild.me).create_instant_invite:
+        if ((channel := guild.system_channel or guild.rules_channel or guild.public_updates_channel)
+                and channel.permissions_for(guild.me).create_instant_invite):
             try:
                 return (await channel.create_invite()).url
             except Exception:
@@ -291,23 +337,27 @@ class ModLinkBot(commands.AutoShardedBot):
         """Prepare the database and bot configurations when ready."""
         print(f"{self.user.name} has been summoned.")
 
-        self.db = await DBService.create()
         self.session = ClientSession()
 
-        blocked_ids = await (await self.db.execute('SELECT id FROM blocked')).fetchall()
-        self.blocked.update(*blocked_ids)
+        await self._create_db()
 
-        admin_ids = await (await self.db.execute('SELECT id FROM admin')).fetchall()
-        self.owner_ids.update(*admin_ids)
+        async with self.db_connect() as db:
+            async with db.execute('SELECT id FROM blocked') as cur:
+                blocked_ids = await cur.fetchall()
+            self.blocked.update(*blocked_ids)
 
-        app_info = await self.application_info()
-        self.app_owner_id = app_info.owner.id
-        self.owner_ids.add(self.app_owner_id)
-        if self.app_owner_id not in admin_ids:
-            await self.db.execute('INSERT OR IGNORE INTO admin VALUES (?)', (self.app_owner_id,))
+            async with db.execute('SELECT id FROM admin') as cur:
+                admin_ids = await cur.fetchall()
+            self.owner_ids.update(*admin_ids)
+
+            app_info = await self.application_info()
+            self.app_owner_id = app_info.owner.id
+            self.owner_ids.add(self.app_owner_id)
+            if self.app_owner_id not in admin_ids:
+                await db.execute('INSERT OR IGNORE INTO admin VALUES (?)', (self.app_owner_id,))
+                await db.commit()
 
         await self._update_guild_configs()
-        await self.change_presence(status=discord.Status.online)
         await self._update_presence()
 
     async def on_message(self, msg):
@@ -329,8 +379,9 @@ class ModLinkBot(commands.AutoShardedBot):
             await self._update_invite_info(guild)
             await self._update_presence()
             if webhook_url := getattr(self.config, 'WEBHOOK_URL', False):
+                guild_string = f"**{discord.utils.escape_markdown(guild.name)}** ({guild.id})"
                 embed = discord.Embed(
-                    description=f":inbox_tray: {self.user.mention} has been added to **{guild.name}**.",
+                    description=f":inbox_tray: {self.user.mention} has been added to {guild_string}.",
                     colour=guild.me.colour.value or 14323253)
                 embed.set_thumbnail(url=str(guild.banner_url))
                 embed.timestamp = guild.created_at
@@ -351,28 +402,23 @@ class ModLinkBot(commands.AutoShardedBot):
                 embed.add_field(name='Member count', value=str(guild.member_count))
 
                 if owner := guild.owner:
-                    embed.set_footer(text=f'Owner: @{owner} | Server created',
+                    embed.set_footer(text=f'Owner: @{owner} ({owner.id}) | Server created',
                                      icon_url=owner.avatar_url)
                 else:
-                    embed.set_footer(text='Server created at')
+                    embed.set_footer(text='Server created')
 
                 guild_config = self.guild_configs[guild.id]
                 if (inviter_id := guild_config.get('inviter_id')) and (inviter := guild.get_member(inviter_id)):
-                    embed.description = f":inbox_tray: **@{inviter}** has added {self.user.mention} to **{guild.name}**."
-                    username = str(inviter)
-                    avatar_url = inviter.avatar_url
-                elif owner:
-                    username = str(owner)
-                    avatar_url = owner.avatar_url
+                    embed.description = (f":inbox_tray: **@{inviter}** has added {self.user.mention} to {guild_string}.")
+                    author = inviter
                 else:
-                    username = self.user.name
-                    avatar_url = self.user.avatar_url
+                    author = owner or self.user
 
                 try:
                     _send_webhook(webhook_url,
                                   embed=embed,
-                                  username=username,
-                                  avatar_url=avatar_url)
+                                  username=f"{author} ({author.id})",
+                                  avatar_url=author.avatar_url)
                 except Exception as error:
                     print(f'{error.__class__.__name__}: {error}', file=stderr)
                     traceback.print_tb(error.__traceback__)
@@ -389,11 +435,13 @@ class ModLinkBot(commands.AutoShardedBot):
             del self.guild_configs[guild.id]
         except KeyError:
             pass
-        await self.db.execute('DELETE FROM guild WHERE id = ?', (guild.id,))
-        await self.db.commit()
+        async with self.db_connect() as db:
+            await db.execute('DELETE FROM guild WHERE id = ?', (guild.id,))
+            await db.commit()
         if (webhook_url := getattr(self.config, 'WEBHOOK_URL', False)) and self.validate_guild(guild):
+            guild_string = f"**{discord.utils.escape_markdown(guild.name)}** ({guild.id})"
             embed = discord.Embed(
-                description=f":outbox_tray: {self.user.mention} has been removed from **{guild.name}**.",
+                description=f":outbox_tray: {self.user.mention} has been removed from {guild_string}.",
                 colour=14323253)
             embed.set_thumbnail(url=str(guild.banner_url))
             embed.set_author(name=guild.name,
@@ -401,32 +449,27 @@ class ModLinkBot(commands.AutoShardedBot):
             embed.timestamp = guild.created_at
 
             if description := guild.description:
-                embed.add_field(name='Description', value=guild.description, inline=False)
+                embed.add_field(name='Description', value=description, inline=False)
 
             embed.add_field(name='Member count', value=str(guild.member_count))
 
             if owner := guild.owner:
-                embed.set_footer(text=f'Owner: @{owner} | Server created',
+                embed.set_footer(text=f'Owner: @{owner} ({owner.id}) | Server created',
                                  icon_url=owner.avatar_url)
             else:
-                embed.set_footer(text='Server created at')
+                embed.set_footer(text='Server created')
 
             guild_config = self.guild_configs[guild.id]
             if (inviter_id := guild_config.get('inviter_id')) and (inviter := guild.get_member(inviter_id)):
-                username = str(inviter)
-                avatar_url = inviter.avatar_url
-            elif owner:
-                username = str(owner)
-                avatar_url = owner.avatar_url
+                author = inviter
             else:
-                username = self.user.name
-                avatar_url = self.user.avatar_url
+                author = owner or self.user
 
             try:
                 _send_webhook(webhook_url,
                               embed=embed,
-                              username=username,
-                              avatar_url=avatar_url)
+                              username=f"{author} ({author.id})",
+                              avatar_url=author.avatar_url)
             except Exception as error:
                 print(f'{error.__class__.__name__}: {error}', file=stderr)
                 traceback.print_tb(error.__traceback__)
@@ -442,8 +485,9 @@ class ModLinkBot(commands.AutoShardedBot):
             del self.guild_configs[channel.guild.id]['channels'][channel.id]
         except KeyError:
             pass
-        await self.db.execute('DELETE FROM channel WHERE id = ?', (channel.id,))
-        await self.db.commit()
+        async with self.db_connect() as db:
+            await db.execute('DELETE FROM channel WHERE id = ?', (channel.id,))
+            await db.commit()
 
     async def on_command_error(self, ctx, error):
         """Handle command exceptions.
@@ -478,8 +522,6 @@ class ModLinkBot(commands.AutoShardedBot):
         Closes the aiohttp client session as well as the connections with the
         database and Discord.
         """
-        if db := getattr(self, 'db', False):
-            await db.close()
         if session := getattr(self, 'session', False):
             await session.close()
         return await super().close()

@@ -20,9 +20,9 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
-import functools
 import time
 from contextlib import suppress
+from functools import wraps
 
 import discord
 from discord.ext import commands
@@ -35,7 +35,7 @@ def delete_msg(coro):
     :return: decorated command
     :rtype: function
     """
-    @functools.wraps(coro)
+    @wraps(coro)
     async def wrapper(self, ctx, *args, **kwargs):
         """Decorator wrapper.
 
@@ -109,7 +109,7 @@ class Util(commands.Cog):
         :param discord.ext.Commands.Context ctx: event context
         """
         me = ctx.guild.me
-        invite_link = f'https://discordapp.com/oauth2/authorize?client_id={me.id}&permissions=672021779&scope=bot'
+        invite_link = f'https://discordapp.com/oauth2/authorize?client_id={me.id}&permissions=67202177&scope=bot'
         embed = discord.Embed(
             title=f':link: Add {me.name} to your server',
             description=f'Use [this link]({invite_link}) to add {me.mention} to your server. '
@@ -136,28 +136,6 @@ class Util(commands.Cog):
         embed.description = (f"**Ping:** {round((end - start) * 1000, 1)} ms\n"
                              f"**Ws:** {round(self.bot.latency * 1000, 1)} ms")
         await message.edit(embed=embed)
-
-    @commands.command(aliases=['guildlist', 'servers', 'serverlist'])
-    @commands.cooldown(rate=1, per=30, type=commands.BucketType.channel)
-    async def guilds(self, ctx):
-        """Send list of guilds that bot is a member of.
-
-        :param discord.ext.Commands.Context ctx: event context
-        """
-        guilds_info = [f"{'Name': <32}Members  Joined (d/m/y)"]
-
-        for guild in self.bot.guilds[:50]:
-            name = guild.name if len(guild.name) <= 30 else f'{guild.name[:27]}...'
-            member_count = '{0:,}'.format(guild.member_count).replace(',', ' ')
-            join_date = self.bot.guild_configs[guild.id]['joined_at'].strftime('%d/%m/%Y')
-            guilds_info.append(f'{name: <32}{member_count: <9}{join_date}')
-
-        description = discord.utils.escape_markdown('\n'.join(guilds_info))
-        embed = discord.Embed(title=':busts_in_silhouette: Servers',
-                              description=f"```{description if len(description) < 2048 else description[2045] + '...'}```",
-                              colour=ctx.guild.me.colour.value or 14323253)
-        embed.set_footer(text=f'Prompted by @{ctx.author}', icon_url=ctx.author.avatar_url)
-        await ctx.send(embed=embed)
 
 
 def setup(bot):

@@ -40,6 +40,10 @@ Set the webhook URL for logging when the bot is added or removed from a guild (o
 ```python3
 WEBHOOK_URL = 'your webhook URL'
 ```
+Set a custom database path (optional):
+```python3
+DB_PATH = 'modlinkbot.db'
+```
 Add the Discord user IDs that may use owner-only commands (optional):
 ```python3
 OWNER_IDS = {
