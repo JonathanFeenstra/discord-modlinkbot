@@ -34,7 +34,7 @@ class DBService:
         self = DBService()
         self.con = await connect('modlinkbot.db', detect_types=PARSE_DECLTYPES | PARSE_COLNAMES)
         self.cur = await self.con.cursor()
-        await self.execute("""PRAGMA foreign_keys = ON""")
+        await self.execute('PRAGMA foreign_keys = ON')
 
         await self.execute("""
             CREATE TABLE

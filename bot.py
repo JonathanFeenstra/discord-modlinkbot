@@ -303,6 +303,8 @@ class ModLinkBot(commands.AutoShardedBot):
         app_info = await self.application_info()
         self.app_owner_id = app_info.owner.id
         self.owner_ids.add(self.app_owner_id)
+        if self.app_owner_id not in admin_ids:
+            await self.db.execute('INSERT OR IGNORE INTO admin VALUES (?)', (self.app_owner_id,))
 
         await self._update_guild_configs()
         await self.change_presence(status=discord.Status.online)
