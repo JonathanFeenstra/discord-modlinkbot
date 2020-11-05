@@ -378,7 +378,7 @@ class DB(commands.Cog):
         await self.bot.db.commit()
         await ctx.send(embed=feedback_embed("Server filters cleared."))
 
-    @commands.command(aliases=['resetchannelfilters', 'ccf'])
+    @commands.command(aliases=['resetchannelfilters', 'cchf'])
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def clearchannelfilters(self, ctx):
         """Clear Nexus Mods search API filters in channel.

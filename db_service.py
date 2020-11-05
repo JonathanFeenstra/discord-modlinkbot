@@ -34,8 +34,9 @@ class DBService:
         self = DBService()
         self.con = await connect('modlinkbot.db', detect_types=PARSE_DECLTYPES | PARSE_COLNAMES)
         self.cur = await self.con.cursor()
+        await self.execute("""PRAGMA foreign_keys = ON""")
 
-        await self.cur.execute("""
+        await self.execute("""
             CREATE TABLE
             IF NOT EXISTS guild (
                 id INTEGER NOT NULL PRIMARY KEY,
@@ -43,14 +44,14 @@ class DBService:
                 joined_at TIMESTAMP NOT NULL
             )
         """)
-        await self.cur.execute("""
+        await self.execute("""
             CREATE TABLE
             IF NOT EXISTS channel (
                 id INTEGER NOT NULL PRIMARY KEY,
                 guild_id INTEGER NOT NULL REFERENCES guild ON DELETE CASCADE
             )
         """)
-        await self.cur.execute("""
+        await self.execute("""
             CREATE TABLE
             IF NOT EXISTS game (
                 name TEXT NOT NULL,
@@ -59,13 +60,13 @@ class DBService:
                 channel_id INTEGER REFERENCES channel ON DELETE CASCADE
             )
         """)
-        await self.cur.execute("""
+        await self.execute("""
             CREATE TABLE
             IF NOT EXISTS blocked (
                 id INTEGER NOT NULL PRIMARY KEY
             )
         """)
-        await self.cur.execute("""
+        await self.execute("""
             CREATE TABLE
             IF NOT EXISTS admin (
                 id INTEGER NOT NULL PRIMARY KEY
