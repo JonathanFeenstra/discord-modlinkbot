@@ -1,5 +1,8 @@
 # discord-modlinkbot
-A [Discord](https://discord.com/) bot for linking game mods. Add modlinkbot to your server using [this link](https://discordapp.com/oauth2/authorize?client_id=665861255051083806&permissions=67202177&scope=bot) (if the link does not work, this instance of the bot may no longer be available). The permissions 'Create Invite', 'Change Nickname', 'View Audit Log' and 'Manage Messages' are optional.
+[![Support Server](https://discord.com/api/guilds/721718612871610388/widget.png?style=shield)](https://discord.gg/Cn7DwNM8wz)
+[![Discord Bots](https://top.gg/api/widget/status/665861255051083806.svg)](https://top.gg/bot/665861255051083806)
+
+A [Discord](https://discord.com/) bot for linking game mods.
 
 ## Features
 Retrieve search results from [Nexus Mods](https://www.nexusmods.com/) for search queries in messages {between braces, separated by commas}, outside of any [Discord markdown](https://support.discord.com/hc/en-us/articles/210298617) or [spoiler tags](https://support.discord.com/hc/en-us/articles/360022320632), each query being between 3 and 120 characters in length. Queries cannot contain any of the following characters: ```\";:=*%$&_<>?`[]```.

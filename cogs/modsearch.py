@@ -217,8 +217,7 @@ class ModSearch(commands.Cog):
             return
 
         ctx = await self.bot.get_context(msg)
-        nexus_config = self.bot.guild_configs[ctx.guild.id]['channels'].get(
-            ctx.channel.id, self.bot.guild_configs[ctx.guild.id]['games'])
+        nexus_config = (guild_config := self.bot.guild_configs[ctx.guild.id])['channels'][ctx.channel.id] or guild_config['games']
 
         if ctx.valid or not nexus_config or not (queries := find_queries(msg.content)):
             return

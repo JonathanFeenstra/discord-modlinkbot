@@ -122,6 +122,7 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
             name='Links',
             value='[Discord Bot List](https://top.gg/bot/665861255051083806) '
                   '| [GitHub](https://github.com/JonathanFeenstra/discord-modlinkbot) '
+                  '| [Support Server](https://discord.gg/Cn7DwNM8wz)'
                   '| [Add to your server](https://discordapp.com/oauth2/authorize?client_id='
                   f'{bot.user.id}&permissions=67202177&scope=bot)',
             inline=False)
@@ -167,7 +168,7 @@ class ModLinkBot(commands.AutoShardedBot):
                 CREATE TABLE
                 IF NOT EXISTS guild (
                     id INTEGER NOT NULL PRIMARY KEY,
-                    prefix TEXT DEFAULT '.' NOT NULL,
+                    prefix TEXT NOT NULL DEFAULT '.',
                     joined_at TIMESTAMP NOT NULL
                 )
             """)
@@ -181,10 +182,11 @@ class ModLinkBot(commands.AutoShardedBot):
             await db.execute("""
                 CREATE TABLE
                 IF NOT EXISTS game (
+                    guild_id INTEGER NOT NULL REFERENCES guild ON DELETE CASCADE,
+                    channel_id INTEGER NOT NULL DEFAULT 0 REFERENCES channel ON DELETE CASCADE,
                     name TEXT NOT NULL,
                     filter TEXT,
-                    guild_id INTEGER NOT NULL REFERENCES guild ON DELETE CASCADE,
-                    channel_id INTEGER REFERENCES channel ON DELETE CASCADE
+                    PRIMARY KEY(guild_id, channel_id, name)
                 )
             """)
             await db.execute("""
@@ -263,10 +265,10 @@ class ModLinkBot(commands.AutoShardedBot):
                 await db.commit()
             async with db.execute('SELECT * FROM game') as cur:
                 games = await cur.fetchall()
-            for game_name, filter, guild_id, channel_id in games:
+            for guild_id, channel_id, game_name, filter in games:
                 if not (guild := self.get_guild(guild_id)):
                     await db.execute('DELETE FROM guild WHERE id = ?', (guild_id,))
-                elif channel_id is None:
+                elif not channel_id:
                     self.guild_configs[guild_id]['games'][game_name] = filter
                 elif guild.get_channel(channel_id):
                     self.guild_configs[guild_id]['channels'][channel_id][game_name] = filter

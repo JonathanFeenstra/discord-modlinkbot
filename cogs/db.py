@@ -111,7 +111,7 @@ class DB(commands.Cog):
             await db.execute('INSERT OR IGNORE INTO blocked VALUES (?)', (_id,))
             await db.commit()
 
-    async def set_filter(self, ctx, config: dict, args_text: str, destination: str, channel_id=None):
+    async def set_filter(self, ctx, config: dict, args_text: str, destination: str, channel_id=0):
         """Parse `args_text` to set filter for game in `config`.
 
         :param discord.ext.Commands.Context ctx: event context
@@ -128,7 +128,7 @@ class DB(commands.Cog):
                                      (channel_id, ctx.guild.id))
                 for game_name, filter in preset.items():
                     await db.execute('INSERT OR REPLACE INTO game VALUES (?, ?, ?, ?)',
-                                     (game_name, filter, ctx.guild.id, channel_id))
+                                     (ctx.guild.id, channel_id, game_name, filter))
                     await ctx.send(embed=feedback_embed(
                         "Default Nexus Mods search API filter set for "
                         f"`{game_name}` to: `{filter}` in {destination}."))
@@ -149,7 +149,7 @@ class DB(commands.Cog):
                 if channel_id:
                     await db.execute('INSERT OR REPLACE INTO channel VALUES (?, ?)', (channel_id, ctx.guild.id))
                 await db.execute('INSERT OR REPLACE INTO game VALUES (?, ?, ?, ?)',
-                                 (game_name, filter, ctx.guild.id, channel_id))
+                                 (ctx.guild.id, channel_id, game_name, filter))
                 await db.commit()
             await ctx.send(embed=feedback_embed(
                 "Default Nexus Mods search API filter set for "
@@ -332,7 +332,7 @@ class DB(commands.Cog):
         else:
             async with self.bot.db_connect() as db:
                 await db.execute('DELETE FROM game WHERE guild_id = ? AND channel_id = ? AND name = ?',
-                                 (ctx.guild.id, None, game_name))
+                                 (ctx.guild.id, 0, game_name))
                 await db.commit()
             await ctx.send(embed=feedback_embed(f"Server filter for `{game_name}` deleted."))
 
@@ -367,7 +367,7 @@ class DB(commands.Cog):
         """
         self.bot.guild_configs[ctx.guild.id]['games'] = defaultdict(dict)
         async with self.bot.db_connect() as db:
-            await db.execute('DELETE FROM game WHERE guild_id = ?', (ctx.guild.id,))
+            await db.execute('DELETE FROM game WHERE guild_id = ? AND channel_id = 0', (ctx.guild.id,))
             await db.commit()
         await ctx.send(embed=feedback_embed("Server filters cleared."))
 
