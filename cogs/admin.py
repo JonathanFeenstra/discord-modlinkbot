@@ -4,9 +4,6 @@ Admin
 
 Cog for providing bot owner/admin-only commands.
 
-Partially based on:
-https://github.com/AlexFlipnote/discord_bot.py/blob/master/cogs/admin.py
-
 :copyright: (C) 2019-2020 Jonathan Feenstra
 :license: GPL-3.0
 
@@ -46,7 +43,8 @@ class Admin(commands.Cog):
         Checks if context author is a bot admin for every command in this cog.
 
         :param discord.ext.Commands.Context ctx: event context
-        :return bool: whether context author is a bot admin
+        :return: whether context author is a bot admin
+        :rtype: bool
         """
         return await self.bot.is_owner(ctx.author)
 

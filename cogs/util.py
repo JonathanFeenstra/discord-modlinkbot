@@ -103,39 +103,38 @@ class Util(commands.Cog):
         self.bot = bot
 
     @commands.command()
+    @delete_msg
     async def invite(self, ctx):
         """Send bot invite link.
 
         :param discord.ext.Commands.Context ctx: event context
         """
         me = ctx.guild.me
-        invite_link = f'https://discordapp.com/oauth2/authorize?client_id={me.id}&permissions=67202177&scope=bot'
         embed = discord.Embed(
             title=f':link: Add {me.name} to your server',
-            description=f'Use [this link]({invite_link}) to add {me.mention} to your server. '
-                        "The permissions 'Create Invite', 'Change Nickname', "
-                        "'View Audit Log' and 'Manage Messages' are optional. Use `.help` for "
-                        "setup instructions.",
+            description=f"Use [this link](https://discordapp.com/oauth2/authorize?client_id={me.id}&permissions=67202177"
+                        f"&scope=bot) to add {me.mention} to your server. The permissions 'Create Invite', 'Change Nickname'"
+                        ", 'View Audit Log' and 'Manage Messages' are optional. Use `.help` for setup instructions.",
             colour=me.colour.value or 14323253)
         embed.set_footer(text=f'Prompted by @{ctx.author}', icon_url=ctx.author.avatar_url)
         await ctx.send(embed=embed)
 
     @commands.command(aliases=['latency'])
     @commands.cooldown(rate=1, per=3, type=commands.BucketType.channel)
+    @delete_msg
     async def ping(self, ctx):
         """Send latency in ms.
 
         :param discord.ext.Commands.Context ctx: event context
         """
-        embed = discord.Embed(title=':satellite: Ping',
-                              description="Testing ping...",
-                              colour=ctx.guild.me.colour.value or 14323253)
+        embed = discord.Embed(title=':satellite: Ping', colour=ctx.guild.me.colour.value or 14323253)
         start = time.perf_counter()
-        message = await ctx.send(embed=embed)
+        await ctx.trigger_typing()
         end = time.perf_counter()
         embed.description = (f"**Ping:** {round((end - start) * 1000, 1)} ms\n"
                              f"**Ws:** {round(self.bot.latency * 1000, 1)} ms")
-        await message.edit(embed=embed)
+        embed.set_footer(text=f'Prompted by @{ctx.author}', icon_url=ctx.author.avatar_url)
+        await ctx.send(embed=embed)
 
 
 def setup(bot):

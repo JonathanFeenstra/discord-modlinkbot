@@ -39,28 +39,61 @@ from cogs.util import SendErrorFeedback, feedback_embed
 __docformat__ = 'restructedtext'
 
 
-def _prefix_callable(bot, msg):
-    """Determine command prefixes to check for in `msg`.
-
-    :param discord.Client bot: the bot to determine the prefixes for
-    :param discord.Message msg: the message
+def _default_guild_config(**kwargs):
     """
-    if msg.guild and (guild_config := bot.guild_configs.get(msg.guild.id)):
-        return commands.when_mentioned_or(guild_config.get('prefix', '.'))(bot, msg)
-    return commands.when_mentioned_or('.')(bot, msg)
+    If no keyword arguments are provided, return default guild
+    configuration, otherwise return `dict(**kwargs)`.
 
-
-def _send_webhook(webhook_url: str, **kwargs):
-    """Send a message using the specified webhook.
-
-    :param str webhook_url: URL of the webhook to send to
+    :return: guild configuration
+    :rtype: dict
     """
-    return discord.Webhook.partial(*webhook_url.split('/')[-2:],
-                                   adapter=discord.RequestsWebhookAdapter()).send(**kwargs)
+    return dict(**kwargs) if kwargs else {'prefix': '.',
+                                          'games': defaultdict(dict),
+                                          'channels': defaultdict(dict),
+                                          'joined_at': datetime.now()}
+
+
+async def get_guild_invite(guild):
+    """Get invite link to guild if possible.
+
+    :param discord.Guild guild: the guild
+    :return: guild invite link or empty string
+    :rtype: str
+    """
+    if guild.me.guild_permissions.manage_guild:
+        invites = await guild.invites()
+        for invite in invites:
+            if not (invite.max_age or invite.temporary):
+                return invite.url
+    if not (guild.channels and guild.me.guild_permissions.create_instant_invite):
+        return ''
+    if ((channel := guild.system_channel or guild.rules_channel or guild.public_updates_channel)
+            and channel.permissions_for(guild.me).create_instant_invite):
+        try:
+            return (await channel.create_invite()).url
+        except Exception:
+            pass
+    for channel in guild.channels:
+        if channel.permissions_for(guild.me).create_instant_invite:
+            try:
+                return (await channel.create_invite()).url
+            except Exception:
+                continue
+    return ''
 
 
 class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
     """Help command for modlinkbot."""
+
+    def __init__(self):
+        """Initialise help command."""
+        super().__init__()
+        self.description = (
+            "Configure a server or channel to retrieve search results from [Nexus Mods](https://www.nexusmods.com/) for "
+            "search queries in messages {between braces, separated by commas}, 3 to 100 characters in length, outside of "
+            "any [Discord markdown](https://support.discord.com/hc/en-us/articles/210298617) or ||[spoiler tags]"
+            "(https://support.discord.com/hc/en-us/articles/360022320632)||. Queries cannot contain any of the following "
+            "characters: \";:=*%$&_<>?[]\\`.")
 
     def add_command_formatting(self, command):
         """
@@ -72,11 +105,10 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
         if command.description:
             self.paginator.add_line(command.description, empty=True)
 
-        signature = self.get_command_signature(command)
-        self.paginator.add_line(signature, empty=True)
+        self.paginator.add_line(self.get_command_signature(command), empty=True)
 
-        if command.help:
-            for line in command.help.splitlines():
+        if help := command.help:
+            for line in help.splitlines():
                 if not line.startswith(':'):
                     self.paginator.add_line(line)
                 else:
@@ -91,18 +123,8 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
         ctx = self.context
         bot = ctx.bot
         prefix = bot.guild_configs[ctx.guild.id].get('prefix', '.')
+        description = [self.description]
 
-        description = [
-            "Configure a server or channel to retrieve search results from "
-            "[Nexus Mods](https://www.nexusmods.com/) for search queries in "
-            "messages {between braces, separated by commas}, 3 to 100 characters "
-            "in length, outside of any [Discord markdown](https://support.discord.com/hc/en-us/articles/210298617) "
-            "or ||[spoiler tags](https://support.discord.com/hc/en-us/articles/360022320632)||."
-            "This includes: *{cursive text}*, **{bold text}**, __{underlined text}__, "
-            "~~{strikethrough text}~~, `{inline code blocks}`,\n"
-            "```\n{multiline\ncode\nblocks}```\nand\n> {block quotes}.",
-            "Queries cannot contain any of the following characters: `\";:=*%$&_<>?[]`."
-        ]
         if bot.get_cog('DB'):
             description.append(
                 f"Use `{prefix}help setsf` for an explanation about how to configure "
@@ -120,10 +142,10 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
                               colour=ctx.guild.me.colour.value or 14323253)
         embed.add_field(
             name='Links',
-            value='[Discord Bot List](https://top.gg/bot/665861255051083806) '
-                  '| [GitHub](https://github.com/JonathanFeenstra/discord-modlinkbot) '
-                  '| [Support Server](https://discord.gg/Cn7DwNM8wz)'
-                  '| [Add to your server](https://discordapp.com/oauth2/authorize?client_id='
+            value='[Discord Bot List](https://top.gg/bot/665861255051083806) | '
+                  '[GitHub](https://github.com/JonathanFeenstra/discord-modlinkbot) | '
+                  '[Support Server](https://discord.gg/Cn7DwNM8wz) | '
+                  '[Add to your server](https://discordapp.com/oauth2/authorize?client_id='
                   f'{bot.user.id}&permissions=67202177&scope=bot)',
             inline=False)
         embed.set_footer(text=f'Prompted by @{ctx.author}', icon_url=ctx.author.avatar_url)
@@ -134,11 +156,12 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
 
 
 class ModLinkBot(commands.AutoShardedBot):
-    """Discord Bot for linking game mods"""
+    """Discord Bot for linking Nexus Mods search results"""
 
     def __init__(self):
         """Initialise bot."""
-        super().__init__(command_prefix=_prefix_callable,
+        super().__init__(command_prefix=lambda bot, msg: commands.when_mentioned_or(
+                            bot.guild_configs.get(msg.guild.id).get('prefix', '.') if msg.guild else '.')(bot, msg),
                          help_command=ModLinkBotHelpCommand(),
                          status=discord.Status.idle,
                          owner_ids=getattr(config, 'OWNER_IDS', set()).copy(),
@@ -148,14 +171,14 @@ class ModLinkBot(commands.AutoShardedBot):
                                                  guild_messages=True))
 
         self.config = config
-        self.guild_configs = defaultdict(self._default_guild_config)
+        self.guild_configs = defaultdict(_default_guild_config)
         self.blocked = set()
         self.db_connect = partial(connect, getattr(self.config, 'DB_PATH', 'modlinkbot.db'),
                                   detect_types=PARSE_DECLTYPES | PARSE_COLNAMES)
 
-        for extension in getattr(config, 'INITIAL_COGS', ()):
+        for extension in getattr(config, 'INITIAL_COGS', ('admin', 'db', 'modsearch', 'util')):
             try:
-                self.load_extension(extension)
+                self.load_extension(f'cogs.{extension}')
             except Exception as e:
                 print(f'Failed to load extension {extension}: {e}', file=stderr)
                 traceback.print_exc()
@@ -203,21 +226,6 @@ class ModLinkBot(commands.AutoShardedBot):
             """)
             await db.commit()
 
-    def _default_guild_config(self, **kwargs):
-        """
-        If no keyword arguments are provided, return default guild
-        configuration, otherwise return `dict(**kwargs)`.
-
-        :return: guild configuration
-        :rtype: dict
-        """
-        if not kwargs:
-            return {'prefix': '.',
-                    'games': defaultdict(dict),
-                    'channels': defaultdict(dict),
-                    'joined_at': datetime.now()}
-        return dict(**kwargs)
-
     async def _update_presence(self):
         """Update the bot's presence with the number of guilds."""
         await self.change_presence(activity=discord.Activity(
@@ -232,8 +240,7 @@ class ModLinkBot(commands.AutoShardedBot):
         """
         guild_config = self.guild_configs[guild.id]
         if guild.me.guild_permissions.view_audit_log:
-            async for log_entry in guild.audit_logs(
-                    action=discord.AuditLogAction.bot_add, limit=limit):
+            async for log_entry in guild.audit_logs(action=discord.AuditLogAction.bot_add, limit=limit):
                 if log_entry.target == guild.me:
                     if log_entry.user.id in self.blocked:
                         return await guild.leave()
@@ -280,6 +287,18 @@ class ModLinkBot(commands.AutoShardedBot):
             if guild.id not in self.guild_configs:
                 await self.on_guild_join(guild)
 
+    def validate_guild(self, guild):
+        """
+        Check if guild and its owner are not blocked and the guild limit not
+        exceeded.
+
+        :param discord.Guild guild: the guild
+        :return: whether the guild is satifies the conditions
+        :rtype: bool
+        """
+        return (isinstance(guild, discord.Guild) and guild.id not in self.blocked and guild.owner_id not in self.blocked
+                and (not (max := getattr(self.config, 'MAX_GUILDS', False)) or len(self.guilds) <= max))
+
     def validate_msg(self, msg):
         """Check if message is valid to be processed.
 
@@ -291,49 +310,6 @@ class ModLinkBot(commands.AutoShardedBot):
                 and msg.author.id not in self.blocked
                 and self.validate_guild(msg.guild)
                 and msg.channel.id not in self.blocked)
-
-    def validate_guild(self, guild):
-        """
-        Check if guild and its owner are not blocked and the guild limit not
-        exceeded.
-
-        :param discord.Guild guild: the guild
-        :return: whether the guild is satifies the conditions
-        :rtype: bool
-        """
-        return (isinstance(guild, discord.Guild)
-                and guild.id not in self.blocked
-                and guild.owner_id not in self.blocked
-                and (not (max := getattr(self.config, 'MAX_GUILDS', False))
-                     or len(self.guilds) <= max))
-
-    async def get_guild_invite(self, guild):
-        """Get invite link to guild if possible.
-
-        :param discord.Guild guild: the guild
-        :return: guild invite link or empty string
-        :rtype: str
-        """
-        if guild.me.guild_permissions.manage_guild:
-            invites = await guild.invites()
-            for invite in invites:
-                if not (invite.max_age or invite.temporary):
-                    return invite.url
-        if not (guild.channels and guild.me.guild_permissions.create_instant_invite):
-            return ''
-        if ((channel := guild.system_channel or guild.rules_channel or guild.public_updates_channel)
-                and channel.permissions_for(guild.me).create_instant_invite):
-            try:
-                return (await channel.create_invite()).url
-            except Exception:
-                pass
-        for channel in guild.channels:
-            if channel.permissions_for(guild.me).create_instant_invite:
-                try:
-                    return (await channel.create_invite()).url
-                except Exception:
-                    continue
-        return ''
 
     async def on_ready(self):
         """Prepare the database and bot configurations when ready."""
@@ -352,8 +328,7 @@ class ModLinkBot(commands.AutoShardedBot):
                 admin_ids = await cur.fetchall()
             self.owner_ids.update(*admin_ids)
 
-            app_info = await self.application_info()
-            self.app_owner_id = app_info.owner.id
+            self.app_owner_id = (await self.application_info()).owner.id
             self.owner_ids.add(self.app_owner_id)
             if self.app_owner_id not in admin_ids:
                 await db.execute('INSERT OR IGNORE INTO admin VALUES (?)', (self.app_owner_id,))
@@ -371,110 +346,78 @@ class ModLinkBot(commands.AutoShardedBot):
             return
         await self.process_commands(msg)
 
+    async def on_guild_join_or_leave(self, guild, join=True):
+        """Update shown guild info on join/leave.
+
+        :param discord.Guild guild: the guild
+        :param bool join: whether the guild joined
+        """
+        await self._update_presence()
+        if not (webhook_url := getattr(self.config, 'WEBHOOK_URL', False)):
+            return
+        guild_string = f"**{discord.utils.escape_markdown(guild.name)}** ({guild.id})"
+        embed = discord.Embed(
+            description=(":inbox_tray: {0} has been added to {1}." if join else
+                         ":outbox_tray: {0} has been removed from {1}.").format(self.user.mention, guild_string),
+            colour=guild.me.colour.value or 14323253)
+        embed.set_thumbnail(url=guild.banner_url)
+        embed.timestamp = guild.created_at
+        if description := guild.description:
+            embed.add_field(name='Description', value=description, inline=False)
+
+        embed.add_field(name='Member count', value=str(guild.member_count))
+        if owner := guild.owner:
+            embed.set_footer(text=f'Owner: @{owner} ({owner.id}) | Server created', icon_url=owner.avatar_url)
+        else:
+            embed.set_footer(text='Server created')
+
+        guild_config = self.guild_configs[guild.id]
+        if (inviter_id := guild_config.get('inviter_id')) and (inviter := guild.get_member(inviter_id)):
+            author = inviter
+            if join:
+                embed.description = f":inbox_tray: **@{inviter}** has added {self.user.mention} to {guild_string}."
+        else:
+            author = owner or self.user
+
+        author_icon_url = guild.icon_url or guild.splash_url
+        if join and (invite := await get_guild_invite(guild)):
+            embed.set_author(name=guild.name,
+                             url=invite,
+                             icon_url=author_icon_url)
+            embed.add_field(name="Invite link", value=invite, inline=False)
+        else:
+            embed.set_author(name=guild.name, icon_url=author_icon_url)
+
+        try:
+            discord.Webhook.partial(*webhook_url.split('/')[-2:], adapter=discord.RequestsWebhookAdapter()).send(
+                                        embed=embed, username=f"{author} ({author.id})", avatar_url=author.avatar_url)
+        except Exception as error:
+            print(f'{error.__class__.__name__}: {error}', file=stderr)
+            traceback.print_tb(error.__traceback__)
+
     async def on_guild_join(self, guild):
         """Set default guild configuration when joining a guild.
 
         :param discord.Guild guild: the guild
         """
-        if self.validate_guild(guild):
-            self.guild_configs[guild.id] = self._default_guild_config()
-            await self._update_invite_info(guild)
-            await self._update_presence()
-            if webhook_url := getattr(self.config, 'WEBHOOK_URL', False):
-                guild_string = f"**{discord.utils.escape_markdown(guild.name)}** ({guild.id})"
-                embed = discord.Embed(
-                    description=f":inbox_tray: {self.user.mention} has been added to {guild_string}.",
-                    colour=guild.me.colour.value or 14323253)
-                embed.set_thumbnail(url=str(guild.banner_url))
-                embed.timestamp = guild.created_at
-
-                author_icon_url = str(guild.icon_url) or str(guild.splash_url)
-
-                if invite := await self.get_guild_invite(guild):
-                    embed.set_author(name=guild.name,
-                                     url=invite,
-                                     icon_url=author_icon_url)
-                    embed.add_field(name="Invite link", value=invite, inline=False)
-                else:
-                    embed.set_author(name=guild.name, icon_url=author_icon_url)
-
-                if description := guild.description:
-                    embed.add_field(name='Description', value=description, inline=False)
-
-                embed.add_field(name='Member count', value=str(guild.member_count))
-
-                if owner := guild.owner:
-                    embed.set_footer(text=f'Owner: @{owner} ({owner.id}) | Server created',
-                                     icon_url=owner.avatar_url)
-                else:
-                    embed.set_footer(text='Server created')
-
-                guild_config = self.guild_configs[guild.id]
-                if (inviter_id := guild_config.get('inviter_id')) and (inviter := guild.get_member(inviter_id)):
-                    embed.description = (f":inbox_tray: **@{inviter}** has added {self.user.mention} to {guild_string}.")
-                    author = inviter
-                else:
-                    author = owner or self.user
-
-                try:
-                    _send_webhook(webhook_url,
-                                  embed=embed,
-                                  username=f"{author} ({author.id})",
-                                  avatar_url=author.avatar_url)
-                except Exception as error:
-                    print(f'{error.__class__.__name__}: {error}', file=stderr)
-                    traceback.print_tb(error.__traceback__)
-        else:
-            await guild.leave()
+        if not self.validate_guild(guild):
+            return await guild.leave()
+        self.guild_configs[guild.id] = _default_guild_config()
+        await self._update_invite_info(guild)
+        await self.on_guild_join_or_leave(guild, True)
 
     async def on_guild_remove(self, guild):
         """Remove guild configuration when leaving a guild.
 
         :param discord.Guild guild: the guild
         """
-        await self._update_presence()
-        try:
-            del self.guild_configs[guild.id]
-        except KeyError:
-            pass
+        if not self.validate_guild(guild):
+            return
+        self.guild_configs.pop(guild.id, None)
         async with self.db_connect() as db:
             await db.execute('DELETE FROM guild WHERE id = ?', (guild.id,))
             await db.commit()
-        if (webhook_url := getattr(self.config, 'WEBHOOK_URL', False)) and self.validate_guild(guild):
-            guild_string = f"**{discord.utils.escape_markdown(guild.name)}** ({guild.id})"
-            embed = discord.Embed(
-                description=f":outbox_tray: {self.user.mention} has been removed from {guild_string}.",
-                colour=14323253)
-            embed.set_thumbnail(url=str(guild.banner_url))
-            embed.set_author(name=guild.name,
-                             icon_url=str(guild.icon_url) or str(guild.splash_url))
-            embed.timestamp = guild.created_at
-
-            if description := guild.description:
-                embed.add_field(name='Description', value=description, inline=False)
-
-            embed.add_field(name='Member count', value=str(guild.member_count))
-
-            if owner := guild.owner:
-                embed.set_footer(text=f'Owner: @{owner} ({owner.id}) | Server created',
-                                 icon_url=owner.avatar_url)
-            else:
-                embed.set_footer(text='Server created')
-
-            guild_config = self.guild_configs[guild.id]
-            if (inviter_id := guild_config.get('inviter_id')) and (inviter := guild.get_member(inviter_id)):
-                author = inviter
-            else:
-                author = owner or self.user
-
-            try:
-                _send_webhook(webhook_url,
-                              embed=embed,
-                              username=f"{author} ({author.id})",
-                              avatar_url=author.avatar_url)
-            except Exception as error:
-                print(f'{error.__class__.__name__}: {error}', file=stderr)
-                traceback.print_tb(error.__traceback__)
+        await self.on_guild_join_or_leave(guild, False)
 
     async def on_guild_channel_delete(self, channel):
         """Delete channel from database on deletion.

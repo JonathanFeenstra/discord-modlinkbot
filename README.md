@@ -1,9 +1,9 @@
 # discord-modlinkbot
-[![Support Server](https://discord.com/api/guilds/721718612871610388/widget.png?style=shield)](https://discord.gg/Cn7DwNM8wz)
+[![License](https://img.shields.io/github/license/JonathanFeenstra/discord-modlinkbot)](https://github.com/JonathanFeenstra/discord-modlinkbot/blob/master/LICENSE)
 [![Discord Bots](https://top.gg/api/widget/status/665861255051083806.svg)](https://top.gg/bot/665861255051083806)
+[![Support Server](https://discord.com/api/guilds/721718612871610388/widget.png?style=shield)](https://discord.gg/Cn7DwNM8wz)
 
-A [Discord](https://discord.com/) bot for linking game mods.
-
+A [Discord](https://discord.com/) bot for linking [Nexus Mods](https://www.nexusmods.com/) search results.
 ## Features
 Retrieve search results from [Nexus Mods](https://www.nexusmods.com/) for search queries in messages {between braces, separated by commas}, outside of any [Discord markdown](https://support.discord.com/hc/en-us/articles/210298617) or [spoiler tags](https://support.discord.com/hc/en-us/articles/360022320632), each query being between 3 and 120 characters in length. Queries cannot contain any of the following characters: ```\";:=*%$&_<>?`[]```.
 
@@ -32,12 +32,7 @@ TOKEN = 'your Discord bot token'
 ```
 Add the cogs (extensions) that will be loaded on initialisation (optional):
 ```python3
-INITIAL_COGS = (
-    'cogs.admin',
-    'cogs.db',
-    'cogs.modsearch',
-    'cogs.util',
-)
+INITIAL_COGS = ('admin', 'db', 'modsearch', 'util')
 ```
 Set the webhook URL for logging when the bot is added or removed from a guild (optional):
 ```python3
@@ -54,7 +49,7 @@ OWNER_IDS = {
     255144776695808001,  # Yoosk (host)
 }
 ```
-Set the maximum number of search result messages per search (optional, 3 by default):
+Set the maximum number of search result messages per search (optional):
 ```python3
 MAX_RESULT_EMBEDS = 3
 ```
@@ -63,4 +58,4 @@ Set the maximum number of guilds that the bot can join (optional):
 MAX_GUILDS = 1024
 ```
 ### Launch
-Run `bot.py` and [add the bot to the Discord server](https://discordpy.readthedocs.io/en/latest/discord.html#inviting-your-bot). The bot will only stay online as long as the script is running.
+Run `bot.py` to start modlinkbot. The bot will stay online as long as the script is running. [Add the bot to a Discord server](https://discordpy.readthedocs.io/en/latest/discord.html#inviting-your-bot) to make use of its features.
