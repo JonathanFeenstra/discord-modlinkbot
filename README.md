@@ -1,7 +1,6 @@
 # discord-modlinkbot
-[![License](https://img.shields.io/github/license/JonathanFeenstra/discord-modlinkbot)](https://github.com/JonathanFeenstra/discord-modlinkbot/blob/master/LICENSE)
 [![Discord Bots](https://top.gg/api/widget/status/665861255051083806.svg)](https://top.gg/bot/665861255051083806)
-[![Support Server](https://discord.com/api/guilds/721718612871610388/widget.png?style=shield)](https://discord.gg/Cn7DwNM8wz)
+[![License](https://img.shields.io/github/license/JonathanFeenstra/discord-modlinkbot)](https://github.com/JonathanFeenstra/discord-modlinkbot/blob/master/LICENSE)
 
 A [Discord](https://discord.com/) bot for linking [Nexus Mods](https://www.nexusmods.com/) search results.
 ## Features
