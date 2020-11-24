@@ -144,7 +144,6 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
             name='Links',
             value='[Discord Bot List](https://top.gg/bot/665861255051083806) | '
                   '[GitHub](https://github.com/JonathanFeenstra/discord-modlinkbot) | '
-                  '[Support Server](https://discord.gg/Cn7DwNM8wz) | '
                   '[Add to your server](https://discordapp.com/oauth2/authorize?client_id='
                   f'{bot.user.id}&permissions=67202177&scope=bot)',
             inline=False)
@@ -182,6 +181,8 @@ class ModLinkBot(commands.AutoShardedBot):
             except Exception as e:
                 print(f'Failed to load extension {extension}: {e}', file=stderr)
                 traceback.print_exc()
+
+        self.loop.create_task(self.startup())
 
     async def _create_db(self):
         """"Create database."""
@@ -311,13 +312,11 @@ class ModLinkBot(commands.AutoShardedBot):
                 and self.validate_guild(msg.guild)
                 and msg.channel.id not in self.blocked)
 
-    async def on_ready(self):
-        """Prepare the database and bot configurations when ready."""
-        print(f"{self.user.name} has been summoned.")
-
-        self.session = ClientSession()
-
+    async def startup(self):
+        """Perform startup tasks, prepare database and configurations."""
+        self.session = ClientSession(loop=self.loop)
         await self._create_db()
+        await self.wait_until_ready()
 
         async with self.db_connect() as db:
             async with db.execute('SELECT id FROM blocked') as cur:
@@ -335,6 +334,10 @@ class ModLinkBot(commands.AutoShardedBot):
                 await db.commit()
 
         await self._update_guild_configs()
+        print(f"{self.user.name} has been summoned.")
+
+    async def on_ready(self):
+        """Update bot presence when ready."""
         await self._update_presence()
 
     async def on_message(self, msg):
@@ -467,9 +470,8 @@ class ModLinkBot(commands.AutoShardedBot):
         Closes the aiohttp client session as well as the connections with the
         database and Discord.
         """
-        if session := getattr(self, 'session', False):
-            await session.close()
-        return await super().close()
+        await self.session.close()
+        await super().close()
 
 
 if __name__ == '__main__':
