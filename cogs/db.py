@@ -5,8 +5,7 @@ DB
 Cog for SQLite local database storage management of guild-specific
 configurations, blocked IDs and admin IDs.
 
-:copyright: (C) 2019-2020 Jonathan Feenstra
-:license: GPL-3.0
+Copyright (C) 2019-2020 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -30,64 +29,28 @@ from .util import delete_msg, feedback_embed
 
 # Pre-configured popular Nexus Games and filters
 NEXUS_CONFIG_PRESETS = {
-    'all': {
-        "All games": '&include_adult=1&timeout=15000',
-    },
-    'morrowind': {
-        "Morrowind": '&game_id=100&include_adult=1&timeout=15000',
-    },
-    'oblivion': {
-        "Oblivion": '&game_id=101&include_adult=1&timeout=15000',
-    },
-    'skyrim': {
-        "Skyrim Classic": '&game_id=110&include_adult=1&timeout=15000',
-    },
-    'skyrimspecialedition': {
-        "Skyrim Special Edition": '&game_id=1704&include_adult=1&timeout=15000',
-    },
+    'all': {"All games": '&include_adult=1&timeout=15000'},
+    'morrowind': {"Morrowind": '&game_id=100&include_adult=1&timeout=15000'},
+    'oblivion': {"Oblivion": '&game_id=101&include_adult=1&timeout=15000'},
+    'skyrim': {"Skyrim Classic": '&game_id=110&include_adult=1&timeout=15000'},
+    'skyrimspecialedition': {"Skyrim Special Edition": '&game_id=1704&include_adult=1&timeout=15000'},
     'skyrimboth': {
         "Skyrim Special Edition": '&game_id=1704&include_adult=1&timeout=15000',
         "Skyrim Classic": '&game_id=110&include_adult=1&timeout=15000',
     },
-    'fallout3': {
-        "Fallout 3": '&game_id=120&include_adult=1&timeout=15000',
-    },
-    'newvegas': {
-        "Fallout New Vegas": '&game_id=130&include_adult=1&timeout=15000',
-    },
-    'fallout4': {
-        "Fallout 4": '&game_id=1151&include_adult=1&timeout=15000',
-    },
-    'witcher3': {
-        "The Witcher 3": '&game_id=952&include_adult=1&timeout=15000',
-    },
-    'stardewvalley': {
-        "Stardew Valley": '&game_id=1303&include_adult=1&timeout=15000',
-    },
-    'dragonage': {
-        "Dragon Age": '&game_id=140&include_adult=1&timeout=15000',
-    },
-    'dragonage2': {
-        "Dragon Age 2": '&game_id=141&include_adult=1&timeout=15000',
-    },
-    'dragonageinquisition': {
-        "Dragon Age: Inquisition": '&game_id=728&include_adult=1&timeout=15000',
-    },
-    'monsterhunterworld': {
-        "Monster Hunter: World": '&game_id=2531&include_adult=1&timeout=15000',
-    },
-    'mountandblade2bannerlord': {
-        "Mount & Blade II: Bannerlord": '&game_id=3174&include_adult=1&timeout=15000',
-    },
-    'darksouls': {
-        "Dark Souls": '&game_id=162&include_adult=1&timeout=15000',
-    },
-    'kingdomcomedeliverance': {
-        "Kingdom Come: Deliverance": '&game_id=2298&include_adult=1&timeout=15000',
-    },
-    'bladeandsorcery': {
-        "Blade & Sorcery": '&game_id=2673&include_adult=1&timeout=15000',
-    },
+    'fallout3': {"Fallout 3": '&game_id=120&include_adult=1&timeout=15000'},
+    'newvegas': {"Fallout New Vegas": '&game_id=130&include_adult=1&timeout=15000'},
+    'fallout4': {"Fallout 4": '&game_id=1151&include_adult=1&timeout=15000'},
+    'witcher3': {"The Witcher 3": '&game_id=952&include_adult=1&timeout=15000'},
+    'stardewvalley': {"Stardew Valley": '&game_id=1303&include_adult=1&timeout=15000'},
+    'dragonage': {"Dragon Age": '&game_id=140&include_adult=1&timeout=15000'},
+    'dragonage2': {"Dragon Age 2": '&game_id=141&include_adult=1&timeout=15000'},
+    'dragonageinquisition': {"Dragon Age: Inquisition": '&game_id=728&include_adult=1&timeout=15000'},
+    'monsterhunterworld': {"Monster Hunter: World": '&game_id=2531&include_adult=1&timeout=15000'},
+    'mountandblade2bannerlord': {"Mount & Blade II: Bannerlord": '&game_id=3174&include_adult=1&timeout=15000'},
+    'darksouls': {"Dark Souls": '&game_id=162&include_adult=1&timeout=15000'},
+    'kingdomcomedeliverance': {"Kingdom Come: Deliverance": '&game_id=2298&include_adult=1&timeout=15000'},
+    'bladeandsorcery': {"Blade & Sorcery": '&game_id=2673&include_adult=1&timeout=15000'},
 }
 
 
@@ -95,32 +58,19 @@ class DB(commands.Cog):
     """Cog to use SQLite database."""
 
     def __init__(self, bot):
-        """Initialise cog and update guild configuration with database content.
-
-        :param discord.Client bot: bot to add cog to
-        """
+        """Initialise cog and update guild configuration with database content."""
         self.bot = bot
 
     async def _block(self, _id: int):
-        """Block a guild or user.
-
-        :param int _id: guild or user ID to blocked
-        """
+        """Block a guild or user."""
         self.bot.blocked.add(_id)
         async with self.bot.db_connect() as db:
             await db.execute('INSERT OR IGNORE INTO blocked VALUES (?)', (_id,))
             await db.commit()
 
-    async def set_filter(self, ctx, config: dict, args_text: str, destination: str, channel_id=0):
-        """Parse `args_text` to set filter for game in `config`.
-
-        :param discord.ext.Commands.Context ctx: event context
-        :param dict config: configuration dict
-        :param str args_text: command arguments text
-        :param str destination: game filter destination
-        :param channel_id: channel ID or None
-        """
-        if preset := NEXUS_CONFIG_PRESETS.get(args_text):
+    async def set_filter(self, ctx, config: dict, game_filter: str, destination: str, channel_id=0):
+        """Parse `game_filter` to set filter for game in `config`."""
+        if preset := NEXUS_CONFIG_PRESETS.get(game_filter):
             config.update(preset)
             async with self.bot.db_connect() as db:
                 if channel_id:
@@ -134,7 +84,7 @@ class DB(commands.Cog):
                         f"`{game_name}` to: `{filter}` in {destination}."))
                 return await db.commit()
 
-        if len(terms := args_text.split()) < 2:
+        if len(terms := game_filter.split()) < 2:
             return await ctx.send(embed=feedback_embed("Invalid arguments.", False))
 
         game_name, filter = ' '.join(terms[:-1]).replace('`', "'"), terms[-1].replace('`', "'")
@@ -159,11 +109,7 @@ class DB(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_ban(self, guild, user):
-        """Block and leave guild if the bot's app owner is banned.
-
-        :param discord.Guild guild: the guild the user got banned from
-        :param discord.User user: the user that got banned
-        """
+        """Block and leave guild if the bot's app owner is banned."""
         if user.id == getattr(self.bot, 'app_owner_id', None):
             await self._block(guild.id)
             await guild.leave()
@@ -171,10 +117,7 @@ class DB(commands.Cog):
     @commands.command(aliases=['ssp', 'presets'])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
     async def showsearchpresets(self, ctx):
-        """Show available search configuration presets.
-
-        :param discord.ext.Commands.Context ctx: event context
-        """
+        """Show available search configuration presets."""
         presets = [f"```{'Preset': <26}Game"]
         for preset_name, config in NEXUS_CONFIG_PRESETS.items():
             games = list(config.keys())
@@ -192,12 +135,7 @@ class DB(commands.Cog):
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def setprefix(self, ctx, prefix: str):
-        """Set guild prefix for bot commands.
-
-        :param discord.ext.Commands.Context ctx: event context
-        :param str prefix: prefix to set
-        :raise ValueError: if prefix too long
-        """
+        """Set guild prefix for bot commands."""
         if len(prefix) <= 3:
             self.bot.guild_configs[ctx.guild.id]['prefix'] = prefix
             async with self.bot.db_connect() as db:
@@ -210,10 +148,7 @@ class DB(commands.Cog):
     @commands.command(aliases=['searchconfig', 'ssc', 'sc'])
     @delete_msg
     async def showsearchconfig(self, ctx):
-        """List configured Nexus Mods default search filters for guild.
-
-        :param discord.ext.Commands.Context ctx: event context
-        """
+        """List configured Nexus Mods default search filters for guild."""
         embed = discord.Embed(colour=14323253)
         embed.set_author(name='Nexus Mods Search Configuration',
                          url='https://www.nexusmods.com/',
@@ -238,93 +173,84 @@ class DB(commands.Cog):
     @commands.command(aliases=['setguildfilter', 'setgf', 'setsf'])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
-    async def setserverfilter(self, ctx, *, args_text: str):
+    async def setserverfilter(self, ctx, *, game_filter: str):
         """Set default Nexus Mods search API filter for game in server.
 
         Requires the 'Manage Server' permission or bot admin permissions.
 
-        `text` can either be a game name with a Nexus Mods search API query
-        string suffix (filter), or a preset name. Use the `.presets` command for
-        a list of search configuration presets.
+        `game_filter` can be a game name with a Nexus Mods search API query string suffix or a preset name. Use the
+        `.presets` command for a list of search configuration presets.
 
         Examples
         --------
 
         Using a game name with search filter:
-        .setsf Farming Simulator 19 &game_id=2676&include_adult=1&timeout=15000
 
-        Applies filter for Farming Simulator 19 with adult mods included and a
-        request timeout of 15000. Here the last term (separated by spaces) is
-        used as filter for a URL such as:
+        `.setsf Farming Simulator 19 &game_id=2676&include_adult=1&timeout=15000`
+
+        Applies filter for Farming Simulator 19 with adult mods included and a request timeout of 15000. Here the last term
+        (separated by spaces) is used as filter for a URL such as:
+
         https://search.nexusmods.com/mods?terms=skyui&game_id=0&blocked_tags=&blocked_authors=&include_adult=1
-        and the preceding terms make up the game name.
+
+        The preceding terms make up the game name.
 
         Using a preset name:
-        .setsf skyrimboth
 
-        Applies the 'skyrimboth' search configuration preset with filters for
-        both Skyrim Special Edition and Skyrim Classic.
+        `.setsf skyrimboth`
+
+        Applies the 'skyrimboth' search configuration preset with filters for both Skyrim Special Edition and Skyrim Classic.
 
         Command prefixes may vary per server.
-
-        :param discord.ext.Commands.Context ctx: event context
-        :param str args_text: text containing game name and filter or preset name
         """
         await self.set_filter(ctx,
                               self.bot.guild_configs[ctx.guild.id]['games'],
-                              args_text,
+                              game_filter,
                               f'**{discord.utils.escape_markdown(ctx.guild.name)}**')
 
     @commands.command(aliases=['setchf'])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.channel)
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
-    async def setchannelfilter(self, ctx, *, args_text: str):
+    async def setchannelfilter(self, ctx, *, game_filter: str):
         """Set Nexus Mods search API filter for game in channel.
 
         Requires the 'Manage Server' permission or bot admin permissions.
 
-        `text` can either be a game name with a Nexus Mods search API query
-        string suffix (filter), or a preset name. Use the `.presets` command
-        for a list of search configuration presets.
+        `game_filter` can be a game name with a Nexus Mods search API query string suffix or a preset name. Use the
+        `.presets` command for a list of search configuration presets.
 
         Examples
         --------
 
         Using a game name with search filter:
-        .setchf Farming Simulator 19 &game_id=2676&include_adult=1&timeout=15000
 
-        Applies filter for Farming Simulator 19 with adult mods included and a
-        request timeout of 15000. Here the last term (separated by spaces) is
-        used as filter for a URL such as:
+        `.setchf Farming Simulator 19 &game_id=2676&include_adult=1&timeout=15000`
+
+        Applies filter for Farming Simulator 19 with adult mods included and a request timeout of 15000. Here the last term
+        (separated by spaces) is used as filter for a URL such as:
+
         https://search.nexusmods.com/mods?terms=skyui&game_id=0&blocked_tags=&blocked_authors=&include_adult=1
-        and the preceding terms make up the game name.
+
+        The preceding terms make up the game name.
 
         Using a preset name:
-        .setchf skyrimboth
 
-        Applies the 'skyrimboth' search configuration preset with filters for
-        both Skyrim Special Edition and Skyrim Classic.
+        `.setchf skyrimboth`
+
+        Applies the 'skyrimboth' search configuration preset with filters for both Skyrim Special Edition and Skyrim Classic.
 
         Command prefixes may vary per server.
-
-        :param discord.ext.Commands.Context ctx: event context
-        :param str args_text: text containing game name and filter
         """
         await self.set_filter(ctx,
                               self.bot.guild_configs[ctx.guild.id]['channels'][ctx.channel.id],
-                              args_text,
+                              game_filter,
                               ctx.channel.mention,
                               ctx.channel.id)
 
     @commands.command(aliases=['delsf', 'rmsf'])
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def deleteserverfilter(self, ctx, *, game_name: str):
-        """Delete Nexus Mods search API filter for game in guild.
-
-        :param discord.ext.Commands.Context ctx: event context
-        :param str game_name: game to delete filter for
-        :raise KeyError: if game name not configured for guild
-        """
+        """Delete Nexus Mods search API filter for game in guild."""
         try:
             del self.bot.guild_configs[ctx.guild.id]['games'][game_name]
         except KeyError:
@@ -339,11 +265,7 @@ class DB(commands.Cog):
     @commands.command(aliases=['delchf', 'removechannelfilter', 'rmchf'])
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def deletechannelfilter(self, ctx, *, game_name: str):
-        """Delete Nexus Mods search API filter for game in channel.
-
-        :param discord.ext.Commands.Context ctx: event context
-        :param str game_name: game to delete filter for
-        """
+        """Delete Nexus Mods search API filter for game in channel."""
         try:
             del self.bot.guild_configs[ctx.guild.id]['channels'][ctx.channel.id][game_name]
         except KeyError:
@@ -361,10 +283,7 @@ class DB(commands.Cog):
     @commands.command(aliases=['resetserverfilters', 'csf'])
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def clearserverfilters(self, ctx):
-        """Clear Nexus Mods search API filters in guild.
-
-        :param discord.ext.Commands.Context ctx: event context
-        """
+        """Clear Nexus Mods search API filters in guild."""
         self.bot.guild_configs[ctx.guild.id]['games'] = defaultdict(dict)
         async with self.bot.db_connect() as db:
             await db.execute('DELETE FROM game WHERE guild_id = ? AND channel_id = 0', (ctx.guild.id,))
@@ -374,10 +293,7 @@ class DB(commands.Cog):
     @commands.command(aliases=['resetchannelfilters', 'cchf'])
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def clearchannelfilters(self, ctx):
-        """Clear Nexus Mods search API filters in channel.
-
-        :param discord.ext.Commands.Context ctx: event context
-        """
+        """Clear Nexus Mods search API filters in channel."""
         self.bot.guild_configs[ctx.guild.id]['channels'][ctx.channel.id] = defaultdict(dict)
         async with self.bot.db_connect() as db:
             await db.execute('DELETE FROM channel WHERE id = ?',  (ctx.channel.id,))
@@ -388,10 +304,7 @@ class DB(commands.Cog):
     @commands.cooldown(rate=1, per=10, type=commands.BucketType.channel)
     @delete_msg
     async def showblocked(self, ctx):
-        """Send embed with blocked IDs.
-
-        :param discord.ext.Commands.Context ctx: event context
-        """
+        """Send embed with blocked IDs."""
         description = ', '.join(str(_id) for _id in self.bot.blocked)
         if not description:
             description = "No blocked IDs yet."
@@ -408,11 +321,7 @@ class DB(commands.Cog):
     @commands.is_owner()
     @delete_msg
     async def block(self, ctx, _id: int):
-        """Block a guild or user from using the bot.
-
-        :param discord.ext.Commands.Context ctx: event context
-        :param int _id: guild or user id
-        """
+        """Block a guild or user from using the bot."""
         if guild := self.bot.get_guild(_id):
             await guild.leave()
         await self._block(_id)
@@ -421,11 +330,7 @@ class DB(commands.Cog):
     @commands.command(aliases=['unblacklist'])
     @commands.is_owner()
     async def unblock(self, ctx, _id: int):
-        """Unblock a guild or user from using the bot.
-
-        :param discord.ext.Commands.Context ctx: event context
-        :param int _id: guild or user id
-        """
+        """Unblock a guild or user from using the bot."""
         try:
             self.bot.blocked.remove(_id)
         except KeyError:
@@ -441,10 +346,7 @@ class DB(commands.Cog):
     @commands.cooldown(rate=1, per=10, type=commands.BucketType.channel)
     @delete_msg
     async def showadmins(self, ctx):
-        """Send embed with admin IDs.
-
-        :param discord.ext.Commands.Context ctx: event context
-        """
+        """Send embed with admin IDs."""
         description = ', '.join(str(_id) for _id in self.bot.owner_ids)
         if not description:
             description = "No admins."
@@ -461,11 +363,7 @@ class DB(commands.Cog):
     @commands.is_owner()
     @delete_msg
     async def makeadmin(self, ctx, user_id: int):
-        """Make user a bot admin.
-
-        :param discord.ext.Commands.Context ctx: event context
-        :param int user_id: ID of user to make admin
-        """
+        """Make user a bot admin."""
         self.bot.owner_ids.add(user_id)
         async with self.bot.db_connect() as db:
             await db.execute('INSERT OR IGNORE INTO admin VALUES (?)', (user_id,))
@@ -475,11 +373,7 @@ class DB(commands.Cog):
     @commands.command(aliases=['rmadmin'])
     @commands.is_owner()
     async def deladmin(self, ctx, user_id: int):
-        """Remove user as bot admin if not app owner.
-
-        :param discord.ext.Commands.Context ctx: event context
-        :param int user_id: ID of user to remove as admin
-        """
+        """Remove user as bot admin if not app owner."""
         if user_id == getattr(self.bot, 'app_owner_id', None):
             return await ctx.send(embed=feedback_embed('Cannot remove app owner.', False))
         try:
@@ -494,8 +388,5 @@ class DB(commands.Cog):
 
 
 def setup(bot):
-    """Add this cog to bot.
-
-    :param discord.Client bot: bot to add cog to
-    """
+    """Add this cog to bot."""
     bot.add_cog(DB(bot))

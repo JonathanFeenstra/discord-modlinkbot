@@ -4,8 +4,7 @@ Admin
 
 Cog for providing bot owner/admin-only commands.
 
-:copyright: (C) 2019-2020 Jonathan Feenstra
-:license: GPL-3.0
+Copyright (C) 2019-2020 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -32,56 +31,35 @@ class Admin(commands.Cog):
     """Cog for providing owner/admin-only commands."""
 
     def __init__(self, bot):
-        """Initialise cog.
-
-        :param discord.Client bot: bot to add cog to
-        """
+        """Initialise cog."""
         self.bot = bot
 
     async def cog_check(self, ctx):
-        """
-        Checks if context author is a bot admin for every command in this cog.
-
-        :param discord.ext.Commands.Context ctx: event context
-        :return: whether context author is a bot admin
-        :rtype: bool
-        """
+        """Checks if context author is a bot admin for every command in this cog."""
         return await self.bot.is_owner(ctx.author)
 
     @commands.command()
-    async def config(self, ctx, attribute: str, *, value):
-        """Set configuration setting to value.
-
-        :param discord.ext.Commands.Context ctx: event context
-        :param str attribute: attribute to set
-        :param str value: value to set
-        """
+    async def config(self, ctx, setting: str, *, value):
+        """Set configuration setting to value."""
         try:
             async with SendErrorFeedback(ctx):
-                setattr(self.bot.config, attribute.upper(), literal_eval(value))
+                setattr(self.bot.config, setting := setting.lower(), literal_eval(value))
         except Exception:
             pass
         else:
-            await ctx.send(f'Succesfully set `{attribute.upper()}={value}`.')
+            await ctx.send(f'Succesfully set `{setting} = {value}`.')
 
     @commands.command(aliases=['stop', 'shutdown', 'close', 'quit', 'exit'])
     @delete_msg
     async def logout(self, ctx):
-        """Log out the bot.
-
-        :param discord.ext.Commands.Context ctx: event context
-        """
+        """Log out the bot."""
         await ctx.send(embed=feedback_embed('Shutting down.'))
         print(f"{self.bot.user.name} has been logged out by {ctx.author}.")
         await self.bot.close()
 
     @commands.command(aliases=['username'])
     async def changeusername(self, ctx, *, username: str):
-        """Change the bot's username.
-
-        :param discord.ext.Commands.Context ctx: event context
-        :param str username: username to change to
-        """
+        """Change the bot's username."""
         try:
             async with SendErrorFeedback(ctx):
                 await self.bot.user.edit(username=username)
@@ -92,11 +70,7 @@ class Admin(commands.Cog):
 
     @commands.command(aliases=['nickname', 'nick'])
     async def changenickname(self, ctx, *, nickname: str = None):
-        """Change the bot's nickname in server.
-
-        :param discord.ext.Commands.Context ctx: event context
-        :param str nickname: nickname to change to
-        """
+        """Change the bot's nickname in server."""
         try:
             async with SendErrorFeedback(ctx):
                 await ctx.guild.me.edit(nick=nickname)
@@ -107,16 +81,10 @@ class Admin(commands.Cog):
 
     @commands.command(aliases=['avatar'])
     async def changeavatar(self, ctx, *, url: str = None):
-        """Change the bot's avatar picture.
-
-        Can also be done with an image attachment instead of a URL.
-
-        :param discord.ext.Commands.Context ctx: event context
-        :param str url: avatar url to change to
-        """
+        """Change the bot's avatar picture with an image attachment or URL."""
         if url is None and len(ctx.message.attachments) == 1:
             url = ctx.message.attachments[0].url
-        elif url:
+        else:
             url = url.strip('<>')
         try:
             async with SendErrorFeedback(ctx):
@@ -130,10 +98,7 @@ class Admin(commands.Cog):
     @commands.command(aliases=['guildlist', 'servers', 'serverlist'])
     @commands.cooldown(rate=1, per=30, type=commands.BucketType.channel)
     async def guilds(self, ctx):
-        """Send list of guilds that bot is a member of.
-
-        :param discord.ext.Commands.Context ctx: event context
-        """
+        """Send list of guilds that bot is a member of."""
         guilds_info = [f"{'Name': <32}Members  Joined (d/m/y)"]
 
         for guild in self.bot.guilds[:50]:
@@ -151,8 +116,5 @@ class Admin(commands.Cog):
 
 
 def setup(bot):
-    """Add this cog to bot.
-
-    :param discord.Client bot: bot to add cog to
-    """
+    """Add this cog to bot."""
     bot.add_cog(Admin(bot))

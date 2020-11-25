@@ -4,8 +4,7 @@ Util
 
 Cog with general utilities.
 
-:copyright: (C) 2019-2020 Jonathan Feenstra
-:license: GPL-3.0
+Copyright (C) 2019-2020 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -29,19 +28,10 @@ from discord.ext import commands
 
 
 def delete_msg(coro):
-    """Delete command message of the decorated command before invoking it.
-
-    :param coro: command coroutine
-    :return: decorated command
-    :rtype: function
-    """
+    """Delete command message of the decorated command before invoking it."""
     @wraps(coro)
     async def wrapper(self, ctx, *args, **kwargs):
-        """Decorator wrapper.
-
-        :param discord.ext.commands.Cog self: cog to which command belongs
-        :param discord.ext.Commands.Context ctx: event context
-        """
+        """Decorator wrapper."""
         if ctx.channel.permissions_for(ctx.me).manage_messages:
             with suppress(discord.NotFound):
                 await ctx.message.delete()
@@ -50,13 +40,7 @@ def delete_msg(coro):
 
 
 def feedback_embed(description: str, success=True):
-    """Return feedback embed with description.
-
-    :param str description: embed description
-    :param bool success: whether to return a positive feedback embed
-    :return: feedback embed
-    :rtype: discord.Embed
-    """
+    """Return feedback embed with description."""
     if success:
         return discord.Embed(description=f':white_check_mark: {description}',
                              colour=7844437)
@@ -67,27 +51,15 @@ class SendErrorFeedback:
     """"Context manager to send feedback embed with error message on errors."""
 
     def __init__(self, ctx):
-        """Initialise context manager.
-
-        :param discord.ext.Commands.Context ctx: event context
-        """
+        """Initialise context manager."""
         self.ctx = ctx
 
     async def __aenter__(self):
-        """Enter context.
-
-        :return: self
-        :rtype: SendErrorFeedback
-        """
+        """Enter context."""
         return self
 
     async def __aexit__(self, exc_type, exc, tb):
-        """Exit context and send feedback embed if exceptions occured.
-
-        :param type exc_type: exception type or None
-        :param Exception exc: exception or None
-        :param traceback tb: traceback or None
-        """
+        """Exit context and send feedback embed if exceptions occured."""
         if exc is not None:
             await self.ctx.send(embed=feedback_embed(f'`{exc_type.__name__}: {exc}`', False))
 
@@ -96,19 +68,13 @@ class Util(commands.Cog):
     """Cog to enable general utility commands."""
 
     def __init__(self, bot):
-        """Initialise cog.
-
-        :param discord.Client bot: bot to add cog to
-        """
+        """Initialise cog."""
         self.bot = bot
 
     @commands.command()
     @delete_msg
     async def invite(self, ctx):
-        """Send bot invite link.
-
-        :param discord.ext.Commands.Context ctx: event context
-        """
+        """Send bot invite link."""
         me = ctx.guild.me
         embed = discord.Embed(
             title=f':link: Add {me.name} to your server',
@@ -123,10 +89,7 @@ class Util(commands.Cog):
     @commands.cooldown(rate=1, per=3, type=commands.BucketType.channel)
     @delete_msg
     async def ping(self, ctx):
-        """Send latency in ms.
-
-        :param discord.ext.Commands.Context ctx: event context
-        """
+        """Send latency in ms."""
         embed = discord.Embed(title=':satellite: Ping', colour=ctx.guild.me.colour.value or 14323253)
         start = time.perf_counter()
         await ctx.trigger_typing()
@@ -138,8 +101,5 @@ class Util(commands.Cog):
 
 
 def setup(bot):
-    """Add this cog to bot.
-
-    :param discord.Client bot: bot to add cog to
-    """
+    """Add this cog to bot."""
     bot.add_cog(Util(bot))

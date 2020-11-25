@@ -8,10 +8,9 @@ Functionality based on:
 -  u/modlinkbot for Reddit:
   https://www.reddit.com/r/modlinkbotsub/comments/dlp7d1/bot_operation_and_information/
 - Nexus Mods Discord Bot quicksearch:
-  https://github.com/Nexus-Mods/discord-bot/blob/master/nexus-discord.js
+  https://github.com/Nexus-Mods/discord-bot/
 
-:copyright: (C) 2019-2020 Jonathan Feenstra
-:license: GPL-3.0
+Copyright (C) 2019-2020 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -63,27 +62,17 @@ SPECIAL = re.compile(r"[^\w]+")
 WHITESPACE = re.compile(r"\s+")
 
 # Nexus Mods global search results string
-NEXUS_GLOBAL_SEARCH = ("[Global Search](https://www.nexusmods.com/search/?gsearch={0}&gsearchtype=mods) | "
+NEXUS_GLOBAL_SEARCH = ("[Results for all games](https://www.nexusmods.com/search/?gsearch={0}&gsearchtype=mods) | "
                        "[DuckDuckGo Search](https://duckduckgo.com/?q={0})")
 
 
 def parse_query(query: str):
-    """Parse Nexus Mods search query.
-
-    :param str query: query to parse
-    :return: parsed query
-    :rtype: str
-    """
+    """Parse Nexus Mods search query."""
     return SPECIAL.sub(',', STRIP.sub('', query.replace("'s", '')))
 
 
 def find_queries(text: str):
-    """Find unique Nexus Mods search queries in plain text.
-
-    :param str text: text to parse
-    :return: queries
-    :rtype: list[str]
-    """
+    """Find unique Nexus Mods search queries in plain text."""
     queries = []
 
     for query_text in NEXUS_SEARCH_QUERIES.findall(MARKDOWN.sub('?', text)):
@@ -98,21 +87,11 @@ class ModSearch(commands.Cog):
     """Cog for searching Nexus Mods."""
 
     def __init__(self, bot):
-        """Initialise cog.
-
-        :param discord.Client bot: bot to add cog to
-        """
+        """Initialise cog."""
         self.bot = bot
 
     async def _fetch_nexus_results(self, embed, queries, game_filters):
-        """Return Discord embed with mod search results from `queries`.
-
-        :param discord.Embed embed: embed to add results to
-        :param list[str] queries: queries to search for
-        :param dict{str: str} game_filters: Nexus Mods search filters per game
-        :return: Discord embed with Nexus Mods results
-        :rtype: discord.Embed
-        """
+        """Return Discord embed with mod search results from `queries`."""
         for query in queries:
             embed.add_field(name="Search results for:", value=f"**{repr(WHITESPACE.sub(' ', query))}**", inline=False)
             any_results = False
@@ -134,7 +113,7 @@ class ModSearch(commands.Cog):
                             mod_name = f"{mod_name[:125]}..."
                         search_result = f"[{mod_name}](https://nexusmods.com{mod['url']})"
                         if n_results > 1:
-                            search_result = (f"{search_result} | [More results](https://www.nexusmods.com/"
+                            search_result = (f"{search_result} | [All results](https://www.nexusmods.com/"
                                              f"{mod['game_name']}/mods/?RH_ModList=include_adult:"
                                              f"{bool(NEXUS_INCLUDE_ADULT.search(filter))},open:true,search_filename:"
                                              f"{parse_query(query).replace(',', '+')}#permalink)")
@@ -144,14 +123,7 @@ class ModSearch(commands.Cog):
         return embed
 
     async def nexus_search(self, query: str, filter: str):
-        """Search Nexus Mods for `query` using `filter` and return results.
-
-        :param str query: query to search for
-        :param filter: Nexus Mods search API filter
-        :return: search results
-        :rtype: list[dict]
-        :raise aiohttp.ClientResponseError: if status code is not 200
-        """
+        """Search Nexus Mods for `query` using `filter` and return results."""
         async with self.bot.session.get(
                 f"https://search.nexusmods.com/mods?terms={parse_query(query)}{filter}",
                 headers={'User-Agent': 'Mozilla/5.0'}) as res:
@@ -166,12 +138,7 @@ class ModSearch(commands.Cog):
                                           history=res.history)
 
     async def send_nexus_results(self, ctx, queries, nexus_config):
-        """Send Nexus Mods query results.
-
-        :param discord.ext.Commands.Context ctx: event context
-        :param list[str] queries: Nexus Mods queries
-        :param dict nexus_config: Nexus Mods games and search API filters
-        """
+        """Send Nexus Mods query results."""
         embed = discord.Embed(colour=14323253)
         embed.set_author(name='Nexus Mods',
                          url='https://www.nexusmods.com/',
@@ -179,7 +146,7 @@ class ModSearch(commands.Cog):
         embed.set_footer(text=f'Searched by @{ctx.author}',
                          icon_url=ctx.author.avatar_url)
 
-        if (n_queries := len(queries)) > (max_queries := getattr(self.bot.config, 'MAX_RESULT_EMBEDS', 3) * (per_embed := 25 // (len(nexus_config) + 1))):
+        if (n_queries := len(queries)) > (max_queries := getattr(self.bot.config, 'max_result_embeds', 3) * (per_embed := 25 // (len(nexus_config) + 1))):
             embed.description = f':x: Too many queries in message (max={max_queries}).'
             return await ctx.send(embed=embed)
 
@@ -196,10 +163,7 @@ class ModSearch(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message(self, msg):
-        """Check for mod search queries in valid new messages and send results.
-
-        :param discord.Message msg: the new message
-        """
+        """Check for mod search queries in valid new messages and send results."""
         if not self.bot.validate_msg(msg):
             return
 
@@ -210,18 +174,14 @@ class ModSearch(commands.Cog):
             return
 
         if not ctx.channel.permissions_for(ctx.me).embed_links:
-            await ctx.send(":x: **Searching mods requires 'Embed Links' permission.**")
+            await ctx.send(embed=feedback_embed("Searching mods requires 'Embed Links' permission.", False))
         else:
             await self.send_nexus_results(ctx, queries, nexus_config)
 
     @commands.command(aliases=['nexussearch', 'modsearch'])
     @commands.has_permissions(embed_links=True)
     async def nexus(self, ctx, *, query_text: str):
-        """Search for query on Nexus Mods.
-
-        :param discord.ext.Commands.Context ctx: event context
-        :param str query_text: text with query/queries to search for
-        """
+        """Search for query on Nexus Mods."""
         nexus_config = self.bot.guild_configs[ctx.guild.id]['channels'].get(
             ctx.channel.id, self.bot.guild_configs[ctx.guild.id]['games'])
         if not nexus_config:
@@ -235,8 +195,5 @@ class ModSearch(commands.Cog):
 
 
 def setup(bot):
-    """Add this cog to bot.
-
-    :param discord.Client bot: bot to add cog to
-    """
+    """Add this cog to bot."""
     bot.add_cog(ModSearch(bot))

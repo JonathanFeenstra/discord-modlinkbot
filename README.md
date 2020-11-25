@@ -27,34 +27,27 @@ pip install -r requirements.txt
 ### Configuration
 Create a `config.py` file in the same directory as `bot.py`. [Make a Discord bot account](https://discordpy.readthedocs.io/en/latest/discord.html), [enable the server members intent](https://discordpy.readthedocs.io/en/latest/intents.html#privileged-intents) and add the bot token to `config.py` as follows:
 ```python3
-TOKEN = 'your Discord bot token'
+token = 'your Discord bot token'
 ```
-Add the cogs (extensions) that will be loaded on initialisation (optional):
+The following settings are optional:
 ```python3
-INITIAL_COGS = ('admin', 'db', 'modsearch', 'util')
-```
-Set the webhook URL for logging when the bot is added or removed from a guild (optional):
-```python3
-WEBHOOK_URL = 'your webhook URL'
-```
-Set a custom database path (optional):
-```python3
-DB_PATH = 'modlinkbot.db'
-```
-Add the Discord user IDs that may use owner-only commands (optional):
-```python3
-OWNER_IDS = {
+# Set the webhook URL for logging when the bot is added or removed from a server
+webhook_url = 'your webhook URL'
+
+# Set a custom database path
+db_path = 'modlinkbot.db'
+
+# Add the Discord user IDs that may use owner-only commands
+owner_ids = {
     340577388331139072,  # Jonathan (developer)
     255144776695808001,  # Yoosk (host)
 }
-```
-Set the maximum number of search result messages per search (optional):
-```python3
-MAX_RESULT_EMBEDS = 3
-```
-Set the maximum number of guilds that the bot can join (optional):
-```python3
-MAX_GUILDS = 1024
+
+# Set the maximum number of search result messages per search
+max_result_embeds = 3
+
+# Set the maximum number of servers that the bot can join
+max_guilds = 1024
 ```
 ### Launch
 Run `bot.py` to start modlinkbot. The bot will stay online as long as the script is running. [Add the bot to a Discord server](https://discordpy.readthedocs.io/en/latest/discord.html#inviting-your-bot) to make use of its features.

@@ -3,10 +3,9 @@
 discord-modlinkbot
 ==================
 
-A Discord bot for linking game mods.
+A Discord bot for linking Nexus Mods search results.
 
-:copyright: (C) 2019-2020 Jonathan Feenstra
-:license: GPL-3.0
+Copyright (C) 2019-2020 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -33,20 +32,14 @@ from aiohttp import ClientSession
 from aiosqlite import connect
 from discord.ext import commands
 
+from itertools import groupby
+
 import config
 from cogs.util import SendErrorFeedback, feedback_embed
 
-__docformat__ = 'restructedtext'
-
 
 def _default_guild_config(**kwargs):
-    """
-    If no keyword arguments are provided, return default guild
-    configuration, otherwise return `dict(**kwargs)`.
-
-    :return: guild configuration
-    :rtype: dict
-    """
+    """If no keyword arguments are provided, return default guild configuration, otherwise return `dict(**kwargs)`."""
     return dict(**kwargs) if kwargs else {'prefix': '.',
                                           'games': defaultdict(dict),
                                           'channels': defaultdict(dict),
@@ -54,12 +47,7 @@ def _default_guild_config(**kwargs):
 
 
 async def get_guild_invite(guild):
-    """Get invite link to guild if possible.
-
-    :param discord.Guild guild: the guild
-    :return: guild invite link or empty string
-    :rtype: str
-    """
+    """Get invite link to guild if possible."""
     if guild.me.guild_permissions.manage_guild:
         invites = await guild.invites()
         for invite in invites:
@@ -96,30 +84,22 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
             "characters: \";:=*%$&_<>?[]\\`.")
 
     def add_command_formatting(self, command):
-        """
-        A utility function to format the non-indented block of commands and
-        groups.
-
-        :param discord.ext.commands.Command command: the command to format
-        """
+        """A utility function to format the non-indented block of commands and groups."""
         if command.description:
             self.paginator.add_line(command.description, empty=True)
 
         self.paginator.add_line(self.get_command_signature(command), empty=True)
 
         if help := command.help:
-            for line in help.splitlines():
-                if not line.startswith(':'):
+            try:
+                self.paginator.add_line(help, empty=True)
+            except RuntimeError:
+                for line in help.splitlines():
                     self.paginator.add_line(line)
-                else:
-                    break
-            self.paginator.add_line()
+                self.paginator.add_line()
 
     async def send_bot_help(self, mapping):
-        """Send help embed for when no help arguments are specified.
-
-        :param mapping: optional mapping of cogs to commands
-        """
+        """Send help embed for when no help arguments are specified."""
         ctx = self.context
         bot = ctx.bot
         prefix = bot.guild_configs[ctx.guild.id].get('prefix', '.')
@@ -127,16 +107,16 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
 
         if bot.get_cog('DB'):
             description.append(
-                f"Use `{prefix}help setsf` for an explanation about how to configure "
-                f"Nexus Mods search for a server, or `{prefix}help setchf` for a channel.")
+                f"Use `{prefix}help setsf` for an explanation about how to configure Nexus Mods search for a server, or "
+                f"`{prefix}help setchf` for a channel.")
         else:
             description.append(
-                "**Important:** Load the DB extension to enable search configuration settings "
-                f"using `{prefix}load db` (can only be done by bot admins).")
+                f"**Important:** Load the DB extension to enable search configuration settings using `{prefix}load db` "
+                "(can only be done by bot admins).")
         if not bot.get_cog('ModSearch'):
             description.append(
-                "**Important:** Load the ModSearch extension to enable Nexus Mods search "
-                f"using `{prefix}load modsearch` (can only be done by bot admins).")
+                f"**Important:** Load the ModSearch extension to enable Nexus Mods search using `{prefix}load modsearch` "
+                "(can only be done by bot admins).")
         embed = discord.Embed(title=f'{bot.user.name} | Help',
                               description='\n\n'.join(description),
                               colour=ctx.guild.me.colour.value or 14323253)
@@ -151,7 +131,20 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
 
         await ctx.send(embed=embed)
         self.paginator.add_line(f"Commands (prefix = {repr(prefix)})", empty=True)
-        await super().send_bot_help(mapping)
+
+        def get_category(command):
+            """Get command category (cog)."""
+            return f'{cog.qualified_name}:' if (cog  := command.cog) is not None else 'No Category:'
+
+        max_size = self.get_max_size(filtered := await self.filter_commands(bot.commands, sort=True, key=get_category))
+
+        for category, cmds in groupby(filtered, key=get_category):
+            self.add_indented_commands(sorted(cmds, key=lambda c: c.name), heading=category, max_size=max_size)
+
+        self.paginator.add_line()
+        self.paginator.add_line(f"Type {prefix}help command for more info on a command.\n"
+                                f"Type {prefix}help category for more info on a category.")
+        await self.send_pages()
 
 
 class ModLinkBot(commands.AutoShardedBot):
@@ -163,7 +156,7 @@ class ModLinkBot(commands.AutoShardedBot):
                             bot.guild_configs.get(msg.guild.id).get('prefix', '.') if msg.guild else '.')(bot, msg),
                          help_command=ModLinkBotHelpCommand(),
                          status=discord.Status.idle,
-                         owner_ids=getattr(config, 'OWNER_IDS', set()).copy(),
+                         owner_ids=getattr(config, 'owner_ids', set()).copy(),
                          intents=discord.Intents(guilds=True,
                                                  members=True,
                                                  bans=True,
@@ -172,10 +165,10 @@ class ModLinkBot(commands.AutoShardedBot):
         self.config = config
         self.guild_configs = defaultdict(_default_guild_config)
         self.blocked = set()
-        self.db_connect = partial(connect, getattr(self.config, 'DB_PATH', 'modlinkbot.db'),
+        self.db_connect = partial(connect, getattr(config, 'db_path', 'modlinkbot.db'),
                                   detect_types=PARSE_DECLTYPES | PARSE_COLNAMES)
 
-        for extension in getattr(config, 'INITIAL_COGS', ('admin', 'db', 'modsearch', 'util')):
+        for extension in ('admin', 'db', 'modsearch', 'util'):
             try:
                 self.load_extension(f'cogs.{extension}')
             except Exception as e:
@@ -185,7 +178,7 @@ class ModLinkBot(commands.AutoShardedBot):
         self.loop.create_task(self.startup())
 
     async def _create_db(self):
-        """"Create database."""
+        """"Create SQLite database tables if they don't exist yet."""
         async with self.db_connect() as db:
             await db.execute('PRAGMA foreign_keys = ON')
             await db.execute("""
@@ -234,21 +227,16 @@ class ModLinkBot(commands.AutoShardedBot):
                 type=discord.ActivityType.watching))
 
     async def _update_invite_info(self, guild, limit=50):
-        """Update guild configuration with data of bot invite when found.
-
-        :param discord.Guild guild: the guild
-        :param int limit: max audit log entries to look through
-        """
+        """Update guild configuration with data of bot invite when found."""
         guild_config = self.guild_configs[guild.id]
         if guild.me.guild_permissions.view_audit_log:
             async for log_entry in guild.audit_logs(action=discord.AuditLogAction.bot_add, limit=limit):
                 if log_entry.target == guild.me:
                     if log_entry.user.id in self.blocked:
                         return await guild.leave()
-                    else:
-                        guild_config['inviter_name'] = str(log_entry.user)
-                        guild_config['inviter_id'] = log_entry.user.id
-                        guild_config['joined_at'] = log_entry.created_at
+                    guild_config['inviter_name'] = str(log_entry.user)
+                    guild_config['inviter_id'] = log_entry.user.id
+                    guild_config['joined_at'] = log_entry.created_at
                     break
         async with self.db_connect() as db:
             await db.execute('INSERT OR IGNORE INTO guild VALUES (?, ?, ?)',
@@ -258,19 +246,17 @@ class ModLinkBot(commands.AutoShardedBot):
     async def _update_guild_configs(self):
         """Update configurations of guilds that joined or left while offline."""
         async with self.db_connect() as db:
+            await db.execute(f"DELETE FROM guild WHERE id NOT IN ({', '.join(str(guild.id) for guild in self.guilds)})")
+            await db.commit()
             async with db.execute('SELECT * FROM guild') as cur:
                 guilds = await cur.fetchall()
             for guild_id, prefix, joined_at in guilds:
-                if self.get_guild(guild_id):
-                    self.guild_configs.update({
-                        guild_id: {'prefix': prefix,
-                                   'games': defaultdict(dict),
-                                   'channels': defaultdict(dict),
-                                   'joined_at': joined_at}
-                    })
-                else:
-                    await db.execute('DELETE FROM guild WHERE id = ?', (guild_id,))
-                await db.commit()
+                self.guild_configs.update({
+                    guild_id: {'prefix': prefix,
+                               'games': defaultdict(dict),
+                               'channels': defaultdict(dict),
+                               'joined_at': joined_at}
+                })
             async with db.execute('SELECT * FROM game') as cur:
                 games = await cur.fetchall()
             for guild_id, channel_id, game_name, filter in games:
@@ -289,24 +275,12 @@ class ModLinkBot(commands.AutoShardedBot):
                 await self.on_guild_join(guild)
 
     def validate_guild(self, guild):
-        """
-        Check if guild and its owner are not blocked and the guild limit not
-        exceeded.
-
-        :param discord.Guild guild: the guild
-        :return: whether the guild is satifies the conditions
-        :rtype: bool
-        """
+        """Check if guild and its owner are not blocked and the guild limit not exceeded."""
         return (isinstance(guild, discord.Guild) and guild.id not in self.blocked and guild.owner_id not in self.blocked
-                and (not (max := getattr(self.config, 'MAX_GUILDS', False)) or len(self.guilds) <= max))
+                and (not (max := getattr(self.config, 'max_guilds', False)) or len(self.guilds) <= max))
 
     def validate_msg(self, msg):
-        """Check if message is valid to be processed.
-
-        :param discord.Message msg: the message
-        :return: whether the message is valid
-        :rtype: bool
-        """
+        """Check if message is valid to be processed."""
         return (not msg.author.bot
                 and msg.author.id not in self.blocked
                 and self.validate_guild(msg.guild)
@@ -341,22 +315,15 @@ class ModLinkBot(commands.AutoShardedBot):
         await self._update_presence()
 
     async def on_message(self, msg):
-        """Process new messages that are not from bots or DMs.
-
-        :param discord.Message msg: the new message
-        """
+        """Process new messages that are not from bots or DMs."""
         if not self.validate_msg(msg):
             return
         await self.process_commands(msg)
 
     async def on_guild_join_or_leave(self, guild, join=True):
-        """Update shown guild info on join/leave.
-
-        :param discord.Guild guild: the guild
-        :param bool join: whether the guild joined
-        """
+        """Update shown guild info on join/leave."""
         await self._update_presence()
-        if not (webhook_url := getattr(self.config, 'WEBHOOK_URL', False)):
+        if not (webhook_url := getattr(self.config, 'webhook_url', False)):
             return
         guild_string = f"**{discord.utils.escape_markdown(guild.name)}** ({guild.id})"
         embed = discord.Embed(
@@ -399,10 +366,7 @@ class ModLinkBot(commands.AutoShardedBot):
             traceback.print_tb(error.__traceback__)
 
     async def on_guild_join(self, guild):
-        """Set default guild configuration when joining a guild.
-
-        :param discord.Guild guild: the guild
-        """
+        """Set default guild configuration when joining a guild."""
         if not self.validate_guild(guild):
             return await guild.leave()
         self.guild_configs[guild.id] = _default_guild_config()
@@ -410,10 +374,7 @@ class ModLinkBot(commands.AutoShardedBot):
         await self.on_guild_join_or_leave(guild, True)
 
     async def on_guild_remove(self, guild):
-        """Remove guild configuration when leaving a guild.
-
-        :param discord.Guild guild: the guild
-        """
+        """Remove guild configuration when leaving a guild."""
         if not self.validate_guild(guild):
             return
         self.guild_configs.pop(guild.id, None)
@@ -423,10 +384,7 @@ class ModLinkBot(commands.AutoShardedBot):
         await self.on_guild_join_or_leave(guild, False)
 
     async def on_guild_channel_delete(self, channel):
-        """Delete channel from database on deletion.
-
-        :param discord.abc.GuildChannel channel: the deleted channel
-        """
+        """Delete channel from database on deletion."""
         if not isinstance(channel, discord.TextChannel):
             return
         try:
@@ -438,11 +396,7 @@ class ModLinkBot(commands.AutoShardedBot):
             await db.commit()
 
     async def on_command_error(self, ctx, error):
-        """Handle command exceptions.
-
-        :param discord.ext.Commands.Context ctx: event context
-        :param Exception error: the exception
-        """
+        """Handle command exceptions."""
         if isinstance(error, commands.CommandNotFound) or hasattr(ctx.command, 'on_error'):
             return
 
@@ -466,10 +420,7 @@ class ModLinkBot(commands.AutoShardedBot):
             traceback.print_tb(error.__traceback__)
 
     async def close(self):
-        """
-        Closes the aiohttp client session as well as the connections with the
-        database and Discord.
-        """
+        """Close the bot."""
         await self.session.close()
         await super().close()
 
@@ -488,9 +439,6 @@ if __name__ == '__main__':
         - db
         - modsearch
         - util
-
-        :param discord.ext.Commands.Context ctx: event context
-        :param str cog: cog to load
         """
         async with SendErrorFeedback(ctx):
             bot.load_extension(f'cogs.{cog}')
@@ -499,11 +447,7 @@ if __name__ == '__main__':
     @bot.command(aliases=['unloadcog'])
     @commands.is_owner()
     async def unload(ctx, *, cog: str):
-        """Unload extension (bot admin only).
-
-        :param discord.ext.Commands.Context ctx: event context
-        :param str cog: cog to unload
-        """
+        """Unload extension (bot admin only)."""
         async with SendErrorFeedback(ctx):
             bot.unload_extension(f'cogs.{cog}')
         await ctx.send(embed=feedback_embed(f"Succesfully unloaded '{cog}'."))
@@ -511,13 +455,9 @@ if __name__ == '__main__':
     @bot.command(aliases=['reloadcog'])
     @commands.is_owner()
     async def reload(ctx, *, cog: str):
-        """Reload extension (bot admin only).
-
-        :param discord.ext.Commands.Context ctx: event context
-        :param str cog: cog to reload
-        """
+        """Reload extension (bot admin only)."""
         async with SendErrorFeedback(ctx):
             bot.reload_extension(f'cogs.{cog}')
         await ctx.send(embed=feedback_embed(f"Succesfully reloaded '{cog}'."))
 
-    bot.run(config.TOKEN)
+    bot.run(config.token)
