@@ -121,7 +121,7 @@ class ModSearch(commands.Cog):
                              f"open:true,search_filename:{'+'.join(response['terms'])}#permalink)")
         embed.add_field(name=game_name, value=search_result)
 
-    async def _embed_single_result(self, embed, game_name, response):
+    async def _embed_single_result(self, embed, game_name, response, nsfw_channel=False):
         """"Fill Discord embed with single mod search result from `query`."""
         if isinstance(e := response, Exception):
             if isinstance(e, ClientResponseError):
@@ -145,13 +145,15 @@ class ModSearch(commands.Cog):
         if (total := response['total']) > 1:
             embed.description = (f"[All {total} results for **{repr(WHITESPACE.sub(' ', response['query']))}**]"
                                  f"(https://www.nexusmods.com/{mod['game_name']}/mods/?RH_ModList=include_adult:"
-                                 f"{response['include_adult']},open:true,search_filename:"
+                                 f"{(include_adult := response['include_adult'])},open:true,search_filename:"
                                  f"{'+'.join(response['terms'])}#permalink)")
-        embed.set_thumbnail(url=f"https://staticdelivery.nexusmods.com{mod['image']}")
+        if nsfw_channel or not include_adult or not await self.check_if_nsfw(response):
+            embed.set_thumbnail(url=f"https://staticdelivery.nexusmods.com{mod['image']}")
+
         embed.add_field(name='Downloads', value=f"{mod['downloads']:,}")
         embed.add_field(name='Endorsements', value=f"{mod['endorsements']:,}")
 
-    async def _embed_query_results(self, embed, queries, game_filters):
+    async def _embed_query_results(self, embed, queries, game_filters, nsfw_channel=False):
         """Fill Discord embed with mod search results from `queries`."""
         if len(queries) == 1:
             query = queries[0]
@@ -167,7 +169,7 @@ class ModSearch(commands.Cog):
                 if not responses:
                     embed.add_field(name="No results.", value=NEXUS_GLOBAL_SEARCH.format(quote(query)), inline=False)
                 elif len(responses) == 1:
-                    await self._embed_single_result(embed, *responses, *responses.values())
+                    await self._embed_single_result(embed, *responses, *responses.values(), nsfw_channel)
                 else:
                     embed.title = f"Search results for: **{repr(WHITESPACE.sub(' ', query))}**"
                     for game_name, response in responses.items():
@@ -175,7 +177,7 @@ class ModSearch(commands.Cog):
             elif (response := await self.nexus_search(query, *game_filters.values())) is None:
                 embed.add_field(name="No results.", value=NEXUS_GLOBAL_SEARCH.format(quote(query)), inline=False)
             else:
-                await self._embed_single_result(embed, *game_filters, response)
+                await self._embed_single_result(embed, *game_filters, response, nsfw_channel)
         else:
             for query in queries:
                 embed.add_field(name="Search results for:", value=f"**{repr(WHITESPACE.sub(' ', query))}**", inline=False)
@@ -205,6 +207,15 @@ class ModSearch(commands.Cog):
             e.query = query
             return e
 
+    async def check_if_nsfw(self, response):
+        """Check if `response` has an NSFW mod as first result."""
+        if (check := await self.nexus_search(
+                parse_query(unescape((mod := response['results'][0])['name'])),
+                f"&game_id={mod['game_id']}&exclude_authors={','.join(response['exclude_authors'])}"
+                f"&exclude_tags={','.join(response['exclude_tags'])}")) and not isinstance(check, Exception):
+            return check['results'][0]['mod_id'] != mod['mod_id']
+        return True
+
     async def send_nexus_results(self, ctx, queries, game_filters):
         """Send Nexus Mods query results."""
         embed = discord.Embed(colour=14323253)
@@ -224,7 +235,7 @@ class ModSearch(commands.Cog):
             result_msg = await ctx.channel.send(embed=embed)
             embed.description = None
             start = time.perf_counter()
-            await self._embed_query_results(embed, queries[idx:idx + per_embed], game_filters)
+            await self._embed_query_results(embed, queries[idx:idx + per_embed], game_filters, ctx.channel.is_nsfw())
             embed.set_footer(text=f'Searched by @{ctx.author} | Total time: {round(time.perf_counter() - start, 2)} s',
                              icon_url=ctx.author.avatar_url)
             await result_msg.edit(embed=embed)
