@@ -20,16 +20,16 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
+import re
 import traceback
 from collections import defaultdict
 from datetime import datetime
-from functools import partial
-from sqlite3 import PARSE_COLNAMES, PARSE_DECLTYPES
+from sqlite3 import connect, PARSE_COLNAMES, PARSE_DECLTYPES
 from sys import stderr
 
 import discord
 from aiohttp import ClientSession
-from aiosqlite import connect
+from aiosqlite import Connection
 from discord.ext import commands
 
 from itertools import groupby
@@ -82,6 +82,7 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
             "any [Discord markdown](https://support.discord.com/hc/en-us/articles/210298617) or ||[spoiler tags]"
             "(https://support.discord.com/hc/en-us/articles/360022320632)||. Queries cannot contain any of the following "
             "characters: \";:=*%$&_<>?[]\\`.")
+        self.single_newline = re.compile(r'(?<!\n)\n(?![\n\=-])')
 
     def add_command_formatting(self, command):
         """A utility function to format the non-indented block of commands and groups."""
@@ -90,7 +91,7 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
 
         self.paginator.add_line(self.get_command_signature(command), empty=True)
 
-        if help := command.help:
+        if help := self.single_newline.sub(' ', command.help):
             try:
                 self.paginator.add_line(help, empty=True)
             except RuntimeError:
@@ -147,6 +148,14 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
         await self.send_pages()
 
 
+class DBConnection(Connection):
+    """Database connection."""
+    async def __aenter__(self):
+        """Enable foreign key support on connect."""
+        await (db := await self).execute('PRAGMA foreign_keys = ON')
+        return db
+
+
 class ModLinkBot(commands.AutoShardedBot):
     """Discord Bot for linking Nexus Mods search results"""
 
@@ -165,8 +174,6 @@ class ModLinkBot(commands.AutoShardedBot):
         self.config = config
         self.guild_configs = defaultdict(_default_guild_config)
         self.blocked = set()
-        self.db_connect = partial(connect, getattr(config, 'db_path', 'modlinkbot.db'),
-                                  detect_types=PARSE_DECLTYPES | PARSE_COLNAMES)
 
         for extension in ('admin', 'db', 'modsearch', 'util'):
             try:
@@ -180,7 +187,6 @@ class ModLinkBot(commands.AutoShardedBot):
     async def _create_db(self):
         """"Create SQLite database tables if they don't exist yet."""
         async with self.db_connect() as db:
-            await db.execute('PRAGMA foreign_keys = ON')
             await db.execute("""
                 CREATE TABLE
                 IF NOT EXISTS guild (
@@ -273,6 +279,11 @@ class ModLinkBot(commands.AutoShardedBot):
         for guild in self.guilds:
             if guild.id not in self.guild_configs:
                 await self.on_guild_join(guild)
+
+    def db_connect(self):
+        """Connect to the database."""
+        return DBConnection(lambda: connect(getattr(self.config, 'db_path', 'modlinkbot.db'),
+                                            detect_types=PARSE_DECLTYPES | PARSE_COLNAMES), 64)
 
     def validate_guild(self, guild):
         """Check if guild and its owner are not blocked and the guild limit not exceeded."""

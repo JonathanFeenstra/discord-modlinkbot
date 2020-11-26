@@ -26,6 +26,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 import re
+import time
 from html import unescape
 from urllib.parse import quote
 
@@ -37,12 +38,11 @@ from .util import feedback_embed
 
 # Regex patterns
 
-# Match Discord markdown, see:
-# https://support.discord.com/hc/en-us/articles/210298617
+# Match Discord markdown, see: https://support.discord.com/hc/en-us/articles/210298617
 MARKDOWN = re.compile((r"```.*?```"                      # ```multiline code```
                        r"|`.*?`"                         # `inline code`
                        r"|^>\s.*?$"                      # > quote
-                       r"|\*\*\*(?!\s).*?(?<!\s)\*\*\*"  # ***bold italics***
+                       r"|\*{3}(?!\s).*?(?<!\s)\*{3}"    # ***bold italics***
                        r"|\*\*(?!\s).*?(?<!\s)\*\*"      # **bold**
                        r"|\*(?!\s).*?(?<!\s)\*"          # *italics*
                        r"|__.*?__"                       # __underline__
@@ -51,9 +51,6 @@ MARKDOWN = re.compile((r"```.*?```"                      # ```multiline code```
                       re.DOTALL | re.MULTILINE)
 # Match text {between braces} excluding specific characters (";:=*%$&_<>?`[])
 NEXUS_SEARCH_QUERIES = re.compile(r"{([^\";:=\*%\$&_<>\?`\[\]]*?)}", re.DOTALL)
-# Match if query string disables the filter for adult content, see:
-# https://help.nexusmods.com/article/19-adult-content-guidelines#Adult_Content_Classifications
-NEXUS_INCLUDE_ADULT = re.compile(r"&include_adult=(true|1)(&|$)", re.IGNORECASE)
 # Leading/trailing characters to remove from Nexus Search queries
 STRIP = re.compile(r"^[^\w]+|[^\w]+$")
 # Special patterns to replace with commas in Nexus Search queries
@@ -73,14 +70,9 @@ def parse_query(query: str):
 
 def find_queries(text: str):
     """Find unique Nexus Mods search queries in plain text."""
-    queries = []
-
-    for query_text in NEXUS_SEARCH_QUERIES.findall(MARKDOWN.sub('?', text)):
-        for query in query_text.split(','):
-            if 2 < len(parse_query(query)) <= 120:
-                queries.append(query.strip())
-
-    return list(dict.fromkeys(queries))
+    return list(dict.fromkeys(
+        query.strip() for query_text in NEXUS_SEARCH_QUERIES.findall(MARKDOWN.sub('?', text))
+        for query in query_text.split(',') if 3 <= len(parse_query(query)) <= 120))
 
 
 class ModSearch(commands.Cog):
@@ -90,63 +82,129 @@ class ModSearch(commands.Cog):
         """Initialise cog."""
         self.bot = bot
 
-    async def _fetch_nexus_results(self, embed, queries, game_filters):
-        """Return Discord embed with mod search results from `queries`."""
-        for query in queries:
-            embed.add_field(name="Search results for:", value=f"**{repr(WHITESPACE.sub(' ', query))}**", inline=False)
-            any_results = False
-            for game_name, filter in game_filters.items():
-                try:
-                    results = await self.nexus_search(query, filter)
-                except Exception as e:
-                    any_results = True
-                    embed.add_field(name=game_name,
-                                    value=(f'[`Error {e.status}: {e.message}`]({e.request_info.real_url})\n'
-                                           '[Server Status](https://www.isitdownrightnow.com/nexusmods.com.html) | '
-                                           if isinstance(e, ClientResponseError) else
-                                           f'`{e.__class__.__name__}: {e}`\n') + NEXUS_GLOBAL_SEARCH.format(quote(query)),
-                                    inline=False)
+    async def _add_result_field(self, embed, game_name, response):
+        """Add search result field to `embed`."""
+        if response is None:
+            return
+        if isinstance(e := response, Exception):
+            return embed.add_field(
+                name=game_name,
+                value=(f'[`Error {e.status}: {e.message}`]({e.request_info.real_url})\n[Server Status]'
+                       '(https://www.isitdownrightnow.com/nexusmods.com.html) | '
+                       if isinstance(e, ClientResponseError) else
+                       f'`{e.__class__.__name__}: {e}`\n') + NEXUS_GLOBAL_SEARCH.format(quote(e.query)),
+                inline=False)
+        if len(mod_name := unescape((mod := response['results'][0])['name'])) > 128:
+            mod_name = f"{mod_name[:125]}..."
+        search_result = f"[{mod_name}](https://nexusmods.com{mod['url']})"
+        if (total := response['total']) > 1:
+            search_result = (f"{search_result} | [{total} results](https://www.nexusmods.com/{mod['game_name']}"
+                             f"/mods/?RH_ModList=include_adult:{response['include_adult']},"
+                             f"open:true,search_filename:{'+'.join(response['terms'])}#permalink)")
+        embed.add_field(name=game_name, value=search_result)
+
+    async def _embed_single_result(self, embed, game_name, response):
+        """"Fill Discord embed with single mod search result from `query`."""
+        if isinstance(e := response, Exception):
+            if isinstance(e, ClientResponseError):
+                embed.title = f'`Error {e.status}: {e.message}`'
+                embed.url = str(e.request_info.real_url)
+            else:
+                embed.title = f'`{e.__class__.__name__}: {e}`'
+            embed._author['name'] += f' | {game_name}'
+            embed.description = (f"Error while searching for **{repr(WHITESPACE.sub(' ', e.query))}**.\n"
+                                 "[Server Status](https://www.isitdownrightnow.com/nexusmods.com.html) | "
+                                 + NEXUS_GLOBAL_SEARCH.format(e.query))
+            return
+        async with self.bot.session.get(
+                (icon_url := ("https://forums.nexusmods.com/uploads/profile/photo-thumb-"
+                              f"{(author_id := (mod := response['results'][0])['user_id'])}.jpg")),
+                headers={'User-Agent': 'Mozilla/5.0'}) as res:
+            if res.status != 200:
+                async with self.bot.session.get(icon_url := f'{icon_url[:-3]}png') as res:
+                    if res.status != 200:
+                        icon_url = 'https://www.nexusmods.com/assets/images/default/avatar.png'
+
+        embed.set_author(name=f"{mod['username']} | {game_name}",
+                         url=f"https://www.nexusmods.com/users/{author_id}",
+                         icon_url=icon_url)
+        if len(mod_name := unescape(mod['name'])) > 128:
+            mod_name = f"{mod_name[:125]}..."
+        embed.title = mod_name
+        embed.url = f"https://nexusmods.com{mod['url']}"
+        if (total := response['total']) > 1:
+            embed.description = (f"[All {total} results for **{repr(WHITESPACE.sub(' ', response['query']))}**]"
+                                 f"(https://www.nexusmods.com/{mod['game_name']}/mods/?RH_ModList=include_adult:"
+                                 f"{response['include_adult']},open:true,search_filename:"
+                                 f"{'+'.join(response['terms'])}#permalink)")
+        embed.set_thumbnail(url=f"https://staticdelivery.nexusmods.com{mod['image']}")
+        embed.add_field(name='Downloads', value=f"{mod['downloads']:,}")
+        embed.add_field(name='Endorsements', value=f"{mod['endorsements']:,}")
+
+    async def _embed_query_results(self, embed, queries, game_filters):
+        """Fill Discord embed with mod search results from `queries`."""
+        if len(queries) == 1:
+            query = queries[0]
+            if len(game_filters) > 1:
+                responses = dict()
+                for game_name, filter in game_filters.items():
+                    try:
+                        if response := await self.nexus_search(query, filter):
+                            responses[game_name] = response
+                    except Exception as e:
+                        e.query = query
+                        responses[game_name] = e
+                if not responses:
+                    embed.add_field(name="No results.", value=NEXUS_GLOBAL_SEARCH.format(quote(query)), inline=False)
+                elif len(responses) == 1:
+                    await self._embed_single_result(embed, *responses, *responses.values())
                 else:
-                    if n_results := len(results):
-                        any_results = True
-                        if len(mod_name := unescape((mod := results[0])['name'])) > 128:
-                            mod_name = f"{mod_name[:125]}..."
-                        search_result = f"[{mod_name}](https://nexusmods.com{mod['url']})"
-                        if n_results > 1:
-                            search_result = (f"{search_result} | [All results](https://www.nexusmods.com/"
-                                             f"{mod['game_name']}/mods/?RH_ModList=include_adult:"
-                                             f"{bool(NEXUS_INCLUDE_ADULT.search(filter))},open:true,search_filename:"
-                                             f"{parse_query(query).replace(',', '+')}#permalink)")
-                        embed.add_field(name=game_name, value=search_result)
-            if not any_results:
+                    embed.title = f"Search results for: **{repr(WHITESPACE.sub(' ', query))}**"
+                    for game_name, response in responses.items():
+                        await self._add_result_field(embed, game_name, response)
+            elif (response := await self.nexus_search(query, *game_filters.values())) is None:
                 embed.add_field(name="No results.", value=NEXUS_GLOBAL_SEARCH.format(quote(query)), inline=False)
-        return embed
+            else:
+                await self._embed_single_result(embed, *game_filters, response)
+        else:
+            for query in queries:
+                embed.add_field(name="Search results for:", value=f"**{repr(WHITESPACE.sub(' ', query))}**", inline=False)
+                n_fields = len(embed.fields)
+                for game_name, filter in game_filters.items():
+                    await self._add_result_field(embed, game_name, await self.nexus_search(query, filter))
+                if len(embed.fields) == n_fields:
+                    embed.add_field(name="No results.", value=NEXUS_GLOBAL_SEARCH.format(quote(query)), inline=False)
 
     async def nexus_search(self, query: str, filter: str):
-        """Search Nexus Mods for `query` using `filter` and return results."""
-        async with self.bot.session.get(
-                f"https://search.nexusmods.com/mods?terms={parse_query(query)}{filter}",
-                headers={'User-Agent': 'Mozilla/5.0'}) as res:
-            if res.status == 200:
-                response_json = await res.json()
-                return response_json.get('results')
-            else:
-                raise ClientResponseError(request_info=res.request_info,
-                                          status=res.status,
-                                          message=res.reason,
-                                          headers=res.headers,
-                                          history=res.history)
+        """Search Nexus Mods for `query` using `filter` and return JSON response."""
+        try:
+            async with self.bot.session.get(
+                    f"https://search.nexusmods.com/mods?terms={parse_query(query)}{filter}",
+                    headers={'User-Agent': 'Mozilla/5.0'}) as res:
+                if res.status == 200:
+                    if (res_json := await res.json()).get('results'):
+                        res_json['query'] = query
+                        return res_json
+                else:
+                    raise ClientResponseError(request_info=res.request_info,
+                                              status=res.status,
+                                              message=res.reason,
+                                              headers=res.headers,
+                                              history=res.history)
+        except Exception as e:
+            e.query = query
+            return e
 
-    async def send_nexus_results(self, ctx, queries, nexus_config):
+    async def send_nexus_results(self, ctx, queries, game_filters):
         """Send Nexus Mods query results."""
         embed = discord.Embed(colour=14323253)
         embed.set_author(name='Nexus Mods',
                          url='https://www.nexusmods.com/',
                          icon_url='https://images.nexusmods.com/favicons/ReskinOrange/favicon-32x32.png')
-        embed.set_footer(text=f'Searched by @{ctx.author}',
-                         icon_url=ctx.author.avatar_url)
 
-        if (n_queries := len(queries)) > (max_queries := getattr(self.bot.config, 'max_result_embeds', 3) * (per_embed := 25 // (len(nexus_config) + 1))):
+        if (n_queries := len(queries)) > (
+                max_queries := getattr(self.bot.config, 'max_result_embeds', 3) * (
+                    per_embed := 25 // (len(game_filters) + 1))):
             embed.description = f':x: Too many queries in message (max={max_queries}).'
             return await ctx.send(embed=embed)
 
@@ -155,10 +213,10 @@ class ModSearch(commands.Cog):
             embed.clear_fields()
             result_msg = await ctx.channel.send(embed=embed)
             embed.description = None
-            embed = await self._fetch_nexus_results(
-                embed,
-                queries[idx:idx + per_embed],
-                nexus_config)
+            start = time.perf_counter()
+            await self._embed_query_results(embed, queries[idx:idx + per_embed], game_filters)
+            embed.set_footer(text=f'Searched by @{ctx.author} | Total time: {round(time.perf_counter() - start, 2)} s',
+                             icon_url=ctx.author.avatar_url)
             await result_msg.edit(embed=embed)
 
     @commands.Cog.listener()
@@ -167,29 +225,30 @@ class ModSearch(commands.Cog):
         if not self.bot.validate_msg(msg):
             return
 
-        ctx = await self.bot.get_context(msg)
-        nexus_config = (guild_config := self.bot.guild_configs[ctx.guild.id])['channels'][ctx.channel.id] or guild_config['games']
+        game_filters = ((guild_config := self.bot.guild_configs[
+                            (ctx := await self.bot.get_context(msg)).guild.id
+                        ])['channels'][ctx.channel.id] or guild_config['games'])
 
-        if ctx.valid or not nexus_config or not (queries := find_queries(msg.content)):
+        if ctx.valid or not game_filters or not (queries := find_queries(msg.content)):
             return
 
         if not ctx.channel.permissions_for(ctx.me).embed_links:
             await ctx.send(embed=feedback_embed("Searching mods requires 'Embed Links' permission.", False))
         else:
-            await self.send_nexus_results(ctx, queries, nexus_config)
+            await self.send_nexus_results(ctx, queries, game_filters)
 
     @commands.command(aliases=['nexussearch', 'modsearch'])
     @commands.has_permissions(embed_links=True)
     async def nexus(self, ctx, *, query_text: str):
         """Search for query on Nexus Mods."""
-        nexus_config = self.bot.guild_configs[ctx.guild.id]['channels'].get(
-            ctx.channel.id, self.bot.guild_configs[ctx.guild.id]['games'])
-        if not nexus_config:
+        game_filters = ((guild_config := self.bot.guild_configs[ctx.guild.id])['channels'][ctx.channel.id]
+                        or guild_config['games'])
+        if not game_filters:
             return await ctx.send(
                 embed=feedback_embed('No search filters configured.', False)
             )
         if queries := find_queries(f'{{{query_text}}}'):
-            await self.send_nexus_results(ctx, queries, nexus_config)
+            await self.send_nexus_results(ctx, queries, game_filters)
         else:
             await ctx.send(embed=feedback_embed('Invalid query.', False))
 

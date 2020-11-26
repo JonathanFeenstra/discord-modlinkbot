@@ -262,7 +262,7 @@ class DB(commands.Cog):
                 await db.commit()
             await ctx.send(embed=feedback_embed(f"Server filter for `{game_name}` deleted."))
 
-    @commands.command(aliases=['delchf', 'removechannelfilter', 'rmchf'])
+    @commands.command(aliases=['delchf', 'rmchf'])
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def deletechannelfilter(self, ctx, *, game_name: str):
         """Delete Nexus Mods search API filter for game in channel."""
@@ -280,7 +280,7 @@ class DB(commands.Cog):
                 await db.commit()
             await ctx.send(embed=feedback_embed(f"Channel filter for `{game_name}` deleted."))
 
-    @commands.command(aliases=['resetserverfilters', 'csf'])
+    @commands.command(aliases=['clearsf', 'csf'])
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def clearserverfilters(self, ctx):
         """Clear Nexus Mods search API filters in guild."""
@@ -290,7 +290,7 @@ class DB(commands.Cog):
             await db.commit()
         await ctx.send(embed=feedback_embed("Server filters cleared."))
 
-    @commands.command(aliases=['resetchannelfilters', 'cchf'])
+    @commands.command(aliases=['clearchf', 'cchf'])
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def clearchannelfilters(self, ctx):
         """Clear Nexus Mods search API filters in channel."""

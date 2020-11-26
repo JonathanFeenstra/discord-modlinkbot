@@ -103,9 +103,8 @@ class Admin(commands.Cog):
 
         for guild in self.bot.guilds[:50]:
             name = guild.name if len(guild.name) <= 30 else f'{guild.name[:27]}...'
-            member_count = '{0:,}'.format(guild.member_count).replace(',', ' ')
             join_date = self.bot.guild_configs[guild.id]['joined_at'].strftime('%d/%m/%Y')
-            guilds_info.append(f'{name: <32}{member_count: <9}{join_date}')
+            guilds_info.append(f"{name: <32}{f'{guild.member_count:,}': <9}{join_date}")
 
         description = discord.utils.escape_markdown('\n'.join(guilds_info))
         embed = discord.Embed(title=':busts_in_silhouette: Servers',
