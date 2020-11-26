@@ -61,6 +61,15 @@ WHITESPACE = re.compile(r"\s+")
 # Nexus Mods global search results string
 NEXUS_GLOBAL_SEARCH = ("[Results for all games](https://www.nexusmods.com/search/?gsearch={0}&gsearchtype=mods) | "
                        "[DuckDuckGo Search](https://duckduckgo.com/?q={0})")
+# Nexus Mods profile icon URL types
+NEXUS_ICON_URLS = [
+    "https://forums.nexusmods.com/uploads/profile/photo-thumb-{0}.jpg",
+    "https://forums.nexusmods.com/uploads/profile/photo-{0}.jpg",
+    "https://forums.nexusmods.com/uploads/av-{0}.jpg",
+    "https://forums.nexusmods.com/uploads/profile/photo-thumb-{0}.png",
+    "https://forums.nexusmods.com/uploads/profile/photo-{0}.png",
+    "https://forums.nexusmods.com/uploads/av-{0}.png",
+]
 
 
 def parse_query(query: str):
@@ -81,6 +90,15 @@ class ModSearch(commands.Cog):
     def __init__(self, bot):
         """Initialise cog."""
         self.bot = bot
+
+    async def _get_icon_url(self, author_id, urls):
+        async with self.bot.session.get(icon_url := urls.pop().format(author_id),
+                                        headers={'User-Agent': 'Mozilla/5.0'}) as res:
+            if res.status != 200:
+                if urls:
+                    return await self._get_icon_url(author_id, urls)
+                return 'https://www.nexusmods.com/assets/images/default/avatar.png'
+        return icon_url
 
     async def _add_result_field(self, embed, game_name, response):
         """Add search result field to `embed`."""
@@ -116,15 +134,7 @@ class ModSearch(commands.Cog):
                                  "[Server Status](https://www.isitdownrightnow.com/nexusmods.com.html) | "
                                  + NEXUS_GLOBAL_SEARCH.format(e.query))
             return
-        async with self.bot.session.get(
-                (icon_url := ("https://forums.nexusmods.com/uploads/profile/photo-thumb-"
-                              f"{(author_id := (mod := response['results'][0])['user_id'])}.jpg")),
-                headers={'User-Agent': 'Mozilla/5.0'}) as res:
-            if res.status != 200:
-                async with self.bot.session.get(icon_url := f'{icon_url[:-3]}png') as res:
-                    if res.status != 200:
-                        icon_url = 'https://www.nexusmods.com/assets/images/default/avatar.png'
-
+        icon_url = await self._get_icon_url(author_id := (mod := response['results'][0])['user_id'], NEXUS_ICON_URLS.copy())
         embed.set_author(name=f"{mod['username']} | {game_name}",
                          url=f"https://www.nexusmods.com/users/{author_id}",
                          icon_url=icon_url)
