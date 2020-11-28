@@ -78,7 +78,7 @@ class Util(commands.Cog):
         me = ctx.guild.me
         embed = discord.Embed(
             title=f':link: Add {me.name} to your server',
-            description=f"Use [this link](https://discordapp.com/oauth2/authorize?client_id={me.id}&permissions=67202177"
+            description=f"Use [this link](https://discordapp.com/oauth2/authorize?client_id={me.id}&permissions=67136705"
                         f"&scope=bot) to add {me.mention} to your server. The permissions 'Create Invite', 'Change Nickname'"
                         ", 'View Audit Log' and 'Manage Messages' are optional. Use `.help` for setup instructions.",
             colour=me.colour.value or 14323253)

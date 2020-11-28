@@ -27,6 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 import re
 import time
+from asyncio import TimeoutError
 from html import unescape
 from urllib.parse import quote
 
@@ -145,9 +146,9 @@ class ModSearch(commands.Cog):
         if (total := response['total']) > 1:
             embed.description = (f"[All {total} results for **{repr(WHITESPACE.sub(' ', response['query']))}**]"
                                  f"(https://www.nexusmods.com/{mod['game_name']}/mods/?RH_ModList=include_adult:"
-                                 f"{(include_adult := response['include_adult'])},open:true,search_filename:"
+                                 f"{response['include_adult']},open:true,search_filename:"
                                  f"{'+'.join(response['terms'])}#permalink)")
-        if nsfw_channel or not include_adult or not await self.check_if_nsfw(response):
+        if nsfw_channel or not response['include_adult'] or not await self.check_if_nsfw(response):
             embed.set_thumbnail(url=f"https://staticdelivery.nexusmods.com{mod['image']}")
 
         embed.add_field(name='Downloads', value=f"{mod['downloads']:,}")
@@ -229,16 +230,26 @@ class ModSearch(commands.Cog):
             embed.description = f':x: Too many queries in message (max={max_queries}).'
             return await ctx.send(embed=embed)
 
+        result_messages = []
         for idx in range(0, n_queries, per_embed):
             embed.description = ":mag_right: Searching mods..."
             embed.clear_fields()
-            result_msg = await ctx.channel.send(embed=embed)
+            result_messages.append(result_msg := await ctx.channel.send(embed=embed))
             embed.description = None
             start = time.perf_counter()
             await self._embed_query_results(embed, queries[idx:idx + per_embed], game_filters, ctx.channel.is_nsfw())
             embed.set_footer(text=f'Searched by @{ctx.author} | Total time: {round(time.perf_counter() - start, 2)} s',
                              icon_url=ctx.author.avatar_url)
             await result_msg.edit(embed=embed)
+        if (perms := ctx.channel.permissions_for(ctx.me)).add_reactions and perms.manage_messages:
+            await result_msg.add_reaction('🗑️')
+            try:
+                await self.bot.wait_for('reaction_add', timeout=10.0, check=lambda reaction, user: user == ctx.author and str(reaction.emoji) == '🗑️')
+            except TimeoutError:
+                await result_msg.remove_reaction('🗑️', self.bot.user)
+            else:
+                for msg in result_messages:
+                    await msg.delete()
 
     @commands.Cog.listener()
     async def on_message(self, msg):

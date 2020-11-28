@@ -126,7 +126,7 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
             value='[Discord Bot List](https://top.gg/bot/665861255051083806) | '
                   '[GitHub](https://github.com/JonathanFeenstra/discord-modlinkbot) | '
                   '[Add to your server](https://discordapp.com/oauth2/authorize?client_id='
-                  f'{bot.user.id}&permissions=67202177&scope=bot)',
+                  f'{bot.user.id}&permissions=67136705&scope=bot)',
             inline=False)
         embed.set_footer(text=f'Prompted by @{ctx.author}', icon_url=ctx.author.avatar_url)
 
@@ -169,7 +169,8 @@ class ModLinkBot(commands.AutoShardedBot):
                          intents=discord.Intents(guilds=True,
                                                  members=True,
                                                  bans=True,
-                                                 guild_messages=True))
+                                                 guild_messages=True,
+                                                 guild_reactions=True))
 
         self.config = config
         self.guild_configs = defaultdict(_default_guild_config)
