@@ -1,0 +1,60 @@
+{
+    "all": {
+        "All games": "&include_adult=1&timeout=15000"
+    },
+    "morrowind": {
+        "Morrowind": "&game_id=100&include_adult=1&timeout=15000"
+    },
+    "oblivion": {
+        "Oblivion": "&game_id=101&include_adult=1&timeout=15000"
+    },
+    "skyrim": {
+        "Skyrim Classic": "&game_id=110&include_adult=1&timeout=15000"
+    },
+    "skyrimspecialedition": {
+        "Skyrim Special Edition": "&game_id=1704&include_adult=1&timeout=15000"
+    },
+    "skyrimboth": {
+        "Skyrim Special Edition": "&game_id=1704&include_adult=1&timeout=15000",
+        "Skyrim Classic": "&game_id=110&include_adult=1&timeout=15000"
+    },
+    "fallout3": {
+        "Fallout 3": "&game_id=120&include_adult=1&timeout=15000"
+    },
+    "newvegas": {
+        "Fallout New Vegas": "&game_id=130&include_adult=1&timeout=15000"
+    },
+    "fallout4": {
+        "Fallout 4": "&game_id=1151&include_adult=1&timeout=15000"
+    },
+    "witcher3": {
+        "The Witcher 3": "&game_id=952&include_adult=1&timeout=15000"
+    },
+    "stardewvalley": {
+        "Stardew Valley": "&game_id=1303&include_adult=1&timeout=15000"
+    },
+    "dragonage": {
+        "Dragon Age": "&game_id=140&include_adult=1&timeout=15000"
+    },
+    "dragonage2": {
+        "Dragon Age 2": "&game_id=141&include_adult=1&timeout=15000"
+    },
+    "dragonageinquisition": {
+        "Dragon Age: Inquisition": "&game_id=728&include_adult=1&timeout=15000"
+    },
+    "monsterhunterworld": {
+        "Monster Hunter: World": "&game_id=2531&include_adult=1&timeout=15000"
+    },
+    "mountandblade2bannerlord": {
+        "Mount & Blade II: Bannerlord": "&game_id=3174&include_adult=1&timeout=15000"
+    },
+    "darksouls": {
+        "Dark Souls": "&game_id=162&include_adult=1&timeout=15000"
+    },
+    "kingdomcomedeliverance": {
+        "Kingdom Come: Deliverance": "&game_id=2298&include_adult=1&timeout=15000"
+    },
+    "bladeandsorcery": {
+        "Blade & Sorcery": "&game_id=2673&include_adult=1&timeout=15000"
+    }
+}

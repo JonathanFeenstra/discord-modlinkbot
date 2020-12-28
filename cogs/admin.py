@@ -47,17 +47,17 @@ class Admin(commands.Cog):
         except Exception:
             pass
         else:
-            await ctx.send(f'Succesfully set `{setting} = {value}`.')
+            await ctx.send(f"Succesfully set `{setting} = {value}`.")
 
-    @commands.command(aliases=['stop', 'shutdown', 'close', 'quit', 'exit'])
+    @commands.command(aliases=["stop", "shutdown", "close", "quit", "exit"])
     @delete_msg
     async def logout(self, ctx):
         """Log out the bot."""
-        await ctx.send(embed=feedback_embed('Shutting down.'))
+        await ctx.send(embed=feedback_embed("Shutting down."))
         print(f"{self.bot.user.name} has been logged out by {ctx.author}.")
         await self.bot.close()
 
-    @commands.command(aliases=['username'])
+    @commands.command(aliases=["username"])
     async def changeusername(self, ctx, *, username: str):
         """Change the bot's username."""
         try:
@@ -66,9 +66,9 @@ class Admin(commands.Cog):
         except Exception:
             pass
         else:
-            await ctx.send(embed=feedback_embed(f'Username set to {repr(username)}.'))
+            await ctx.send(embed=feedback_embed(f"Username set to {repr(username)}."))
 
-    @commands.command(aliases=['nickname', 'nick'])
+    @commands.command(aliases=["nickname", "nick"])
     async def changenickname(self, ctx, *, nickname: str = None):
         """Change the bot's nickname in server."""
         try:
@@ -77,15 +77,15 @@ class Admin(commands.Cog):
         except Exception:
             pass
         else:
-            await ctx.send(embed=feedback_embed(f'Nickname set to {repr(nickname)}.' if nickname else 'Nickname removed'))
+            await ctx.send(embed=feedback_embed(f"Nickname set to {repr(nickname)}." if nickname else "Nickname removed"))
 
-    @commands.command(aliases=['avatar'])
+    @commands.command(aliases=["avatar"])
     async def changeavatar(self, ctx, *, url: str = None):
         """Change the bot's avatar picture with an image attachment or URL."""
         if url is None and len(ctx.message.attachments) == 1:
             url = ctx.message.attachments[0].url
         else:
-            url = url.strip('<>')
+            url = url.strip("<>")
         try:
             async with SendErrorFeedback(ctx):
                 async with self.bot.session.get(url) as res:
@@ -93,24 +93,26 @@ class Admin(commands.Cog):
         except Exception:
             pass
         else:
-            await ctx.send(embed=feedback_embed('Avatar changed.'))
+            await ctx.send(embed=feedback_embed("Avatar changed."))
 
-    @commands.command(aliases=['guildlist', 'servers', 'serverlist'])
+    @commands.command(aliases=["guildlist", "servers", "serverlist"])
     @commands.cooldown(rate=1, per=30, type=commands.BucketType.channel)
     async def guilds(self, ctx):
         """Send list of guilds that bot is a member of."""
         guilds_info = [f"{'Name': <32}Members  Joined (d/m/y)"]
 
         for guild in self.bot.guilds[:50]:
-            name = guild.name if len(guild.name) <= 30 else f'{guild.name[:27]}...'
-            join_date = self.bot.guild_configs[guild.id]['joined_at'].strftime('%d/%m/%Y')
+            name = guild.name if len(guild.name) <= 30 else f"{guild.name[:27]}..."
+            join_date = self.bot.guild_configs[guild.id]["joined_at"].strftime("%d/%m/%Y")
             guilds_info.append(f"{name: <32}{f'{guild.member_count:,}': <9}{join_date}")
 
-        description = discord.utils.escape_markdown('\n'.join(guilds_info))
-        embed = discord.Embed(title=':busts_in_silhouette: Servers',
-                              description=f"```{description if len(description) < 2048 else description[2045] + '...'}```",
-                              colour=ctx.guild.me.colour.value or 14323253)
-        embed.set_footer(text=f'Prompted by @{ctx.author}', icon_url=ctx.author.avatar_url)
+        description = discord.utils.escape_markdown("\n".join(guilds_info))
+        embed = discord.Embed(
+            title=":busts_in_silhouette: Servers",
+            description=f"```{description if len(description) < 2048 else description[2045] + '...'}```",
+            colour=ctx.guild.me.colour.value or 14323253,
+        )
+        embed.set_footer(text=f"Prompted by @{ctx.author}", icon_url=ctx.author.avatar_url)
         await ctx.send(embed=embed)
 
 
