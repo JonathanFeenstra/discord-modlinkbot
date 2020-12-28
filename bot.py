@@ -34,7 +34,6 @@ from aiosqlite import connect
 from discord.ext import commands
 
 import config
-from cogs.util import SendErrorFeedback, feedback_embed
 
 
 def _default_guild_config(**kwargs):
@@ -60,13 +59,13 @@ async def get_guild_invite(guild):
     ).create_instant_invite:
         try:
             return (await channel.create_invite()).url
-        except Exception:
+        except (discord.HTTPException, discord.NotFound):
             pass
     for channel in guild.channels:
         if channel.permissions_for(guild.me).create_instant_invite:
             try:
                 return (await channel.create_invite()).url
-            except Exception:
+            except (discord.HTTPException, discord.NotFound):
                 continue
     return ""
 
@@ -291,13 +290,13 @@ class ModLinkBot(commands.Bot):
                 )
             async with db.execute("SELECT * FROM game") as cur:
                 games = await cur.fetchall()
-            for guild_id, channel_id, game_name, filter in games:
+            for guild_id, channel_id, game_name, game_filter in games:
                 if not (guild := self.get_guild(guild_id)):
                     await db.execute("DELETE FROM guild WHERE id = ?", (guild_id,))
                 elif not channel_id:
-                    self.guild_configs[guild_id]["games"][game_name] = filter
+                    self.guild_configs[guild_id]["games"][game_name] = game_filter
                 elif guild.get_channel(channel_id):
-                    self.guild_configs[guild_id]["channels"][channel_id][game_name] = filter
+                    self.guild_configs[guild_id]["channels"][channel_id][game_name] = game_filter
                 else:
                     await db.execute("DELETE FROM channel WHERE id = ?", (channel_id,))
             await db.commit()
@@ -312,7 +311,7 @@ class ModLinkBot(commands.Bot):
             isinstance(guild, discord.Guild)
             and guild.id not in self.blocked
             and guild.owner_id not in self.blocked
-            and (not (max := getattr(self.config, "max_guilds", False)) or len(self.guilds) <= max)
+            and (not (max_guilds := getattr(self.config, "max_guilds", False)) or len(self.guilds) <= max_guilds)
         )
 
     def validate_msg(self, msg):
@@ -327,6 +326,7 @@ class ModLinkBot(commands.Bot):
     async def startup(self):
         """Perform startup tasks, prepare database and configurations."""
         self.session = ClientSession(loop=self.loop)
+        self.adapter = discord.AsyncWebhookAdapter(self.session)
         await self._create_db()
         await self.wait_until_ready()
 
@@ -397,10 +397,10 @@ class ModLinkBot(commands.Bot):
             embed.set_author(name=guild.name, icon_url=author_icon_url)
 
         try:
-            discord.Webhook.partial(*webhook_url.split("/")[-2:], adapter=discord.RequestsWebhookAdapter()).send(
+            await discord.Webhook.partial(*webhook_url.split("/")[-2:], adapter=self.adapter).send(
                 embed=embed, username=f"{author} ({author.id})", avatar_url=author.avatar_url
             )
-        except Exception as error:
+        except (discord.HTTPException, discord.NotFound, discord.Forbidden) as error:
             print(f"{error.__class__.__name__}: {error}", file=stderr)
             traceback.print_tb(error.__traceback__)
 
@@ -444,13 +444,9 @@ class ModLinkBot(commands.Bot):
         error = getattr(error, "original", error)
 
         if isinstance(error, (commands.UserInputError, commands.CheckFailure)):
-            await ctx.send(embed=feedback_embed(str(error), False))
+            await ctx.send(f":x: {error}")
         elif isinstance(error, commands.CommandOnCooldown):
-            await ctx.send(
-                embed=feedback_embed(
-                    f"{ctx.author.mention} Command on cooldown.  Try again after {round(error.retry_after, 1)} s.", False
-                )
-            )
+            await ctx.send(f":x: {ctx.author.mention} Command on cooldown. Try again after {round(error.retry_after, 1)} s.")
         else:
             if isinstance(error, discord.HTTPException):
                 print(f"In {ctx.command.qualified_name}:", file=stderr)
@@ -478,24 +474,30 @@ if __name__ == "__main__":
         - modsearch
         - util
         """
-        async with SendErrorFeedback(ctx):
+        try:
             modlinkbot.load_extension(f"cogs.{cog}")
-        await ctx.send(embed=feedback_embed(f"Succesfully loaded '{cog}'."))
+        except Exception as error:
+            await ctx.send(f":x: `{error.__class__.__name__}: {error}`")
+        await ctx.send(f":white_check_mark: Successfully loaded '{cog}'.")
 
     @modlinkbot.command(aliases=["unloadcog"])
     @commands.is_owner()
     async def unload(ctx, *, cog: str):
         """Unload extension (bot admin only)."""
-        async with SendErrorFeedback(ctx):
+        try:
             modlinkbot.unload_extension(f"cogs.{cog}")
-        await ctx.send(embed=feedback_embed(f"Succesfully unloaded '{cog}'."))
+        except Exception as error:
+            await ctx.send(f":x: `{error.__class__.__name__}: {error}`")
+        await ctx.send(f":white_check_mark: Successfully unloaded '{cog}'.")
 
     @modlinkbot.command(aliases=["reloadcog"])
     @commands.is_owner()
     async def reload(ctx, *, cog: str):
         """Reload extension (bot admin only)."""
-        async with SendErrorFeedback(ctx):
+        try:
             modlinkbot.reload_extension(f"cogs.{cog}")
-        await ctx.send(embed=feedback_embed(f"Succesfully reloaded '{cog}'."))
+        except Exception as error:
+            await ctx.send(f":x: `{error.__class__.__name__}: {error}`")
+        await ctx.send(f":white_check_mark: Succesfully reloaded '{cog}'.")
 
     modlinkbot.run(config.token)

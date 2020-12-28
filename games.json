@@ -1,6 +1,6 @@
 {
     "all": {
-        "All games": "&include_adult=1&timeout=15000"
+        "All games": "&game_id=0&include_adult=1&timeout=15000"
     },
     "morrowind": {
         "Morrowind": "&game_id=100&include_adult=1&timeout=15000"

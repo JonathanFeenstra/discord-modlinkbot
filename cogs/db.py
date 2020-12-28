@@ -27,9 +27,11 @@ from collections import defaultdict
 import discord
 from discord.ext import commands
 
-from .util import delete_msg, feedback_embed
+from .util import delete_msg
 
+# Match Nexus Mods game name in HTML
 GAME_NAME_RE = re.compile(r":: (?P<game_name>.*?)\"")
+# Match Nexus Mods game ID in HTML
 GAME_ID_RE = re.compile(r"https://staticdelivery\.nexusmods\.com/Images/games/4_3/tile_(?P<game_id>[0-9]{1,4})")
 
 
@@ -60,10 +62,10 @@ class DB(commands.Cog):
             f"https://www.nexusmods.com/{game_dir}", headers={"User-Agent": "Mozilla/5.0"}
         ) as res:
             content = (await res.content.read(700)).decode("utf-8")
-            if (game_name := GAME_NAME_RE.search(content)) and (game_id := GAME_ID_RE.search(content)):
-                result = self.games[game_dir] = {
-                    game_name.group("game_name"): f"&game_id={game_id.group('game_id')}&include_adult=1&timeout=15000"
-                }
+            if (game_name := GAME_NAME_RE.search(content).group("game_name")) and (
+                game_id := GAME_ID_RE.search(content).group("game_id")
+            ) != "0":
+                result = self.games[game_dir] = {game_name: f"&game_id={game_id}&include_adult=1&timeout=15000"}
                 return result
         return None
 
@@ -79,21 +81,19 @@ class DB(commands.Cog):
                         "INSERT OR REPLACE INTO game VALUES (?, ?, ?, ?)", (ctx.guild.id, channel_id, game_name, game_filter)
                     )
                     await ctx.send(
-                        embed=feedback_embed(
-                            "Default Nexus Mods search API filter set for "
-                            f"`{game_name}` to: `{game_filter}` in {destination}."
-                        )
+                        ":white_check_mark: Default Nexus Mods search API filter set for "
+                        f"`{game_name}` to: `{game_filter}` in {destination}."
                     )
                 return await db.commit()
 
         if len(terms := game_filter.split()) < 2:
-            return await ctx.send(embed=feedback_embed("Invalid arguments.", False))
+            return await ctx.send(":x: Invalid arguments.")
 
         game_name, game_filter = " ".join(terms[:-1]).replace("`", "'"), terms[-1].replace("`", "'")
         if len(game_name) > 100:
-            return await ctx.send(embed=feedback_embed("Game name too long (max length = 100).", False))
+            return await ctx.send(":x: Game name too long (max length = 100).")
         if len(game_filter) > 1024:
-            return await ctx.send(embed=feedback_embed("Filter too long (max length = 1024).", False))
+            return await ctx.send(":x: Filter too long (max length = 1024).")
 
         if game_name in config or len(config) <= 5:
             config[game_name] = game_filter
@@ -105,12 +105,11 @@ class DB(commands.Cog):
                 )
                 await db.commit()
             await ctx.send(
-                embed=feedback_embed(
-                    "Default Nexus Mods search API filter set for " f"`{game_name}` to: `{game_filter}` in {destination}."
-                )
+                ":white_check_mark: Default Nexus Mods search API filter set for "
+                f"`{game_name}` to: `{game_filter}` in {destination}."
             )
         else:
-            await ctx.send(embed=feedback_embed("Maximum of 5 games exceeded.", False))
+            await ctx.send(":x: Maximum of 5 games exceeded.")
 
     @commands.Cog.listener()
     async def on_member_ban(self, guild, user):
@@ -129,9 +128,9 @@ class DB(commands.Cog):
             async with self.bot.db_connect() as db:
                 await db.execute("UPDATE guild SET prefix = ? WHERE id = ?", (prefix, ctx.guild.id))
                 await db.commit()
-            await ctx.send(embed=feedback_embed(f"Prefix set to `{prefix}`."))
+            await ctx.send(f":white_check_mark: Prefix set to `{prefix}`.")
         else:
-            await ctx.send(embed=feedback_embed("Prefix too long (max length = 3).", False))
+            await ctx.send(":x: Prefix too long (max length = 3).")
 
     @commands.command(aliases=["searchconfig", "ssc", "sc"])
     @delete_msg
@@ -193,7 +192,7 @@ class DB(commands.Cog):
             ctx,
             self.bot.guild_configs[ctx.guild.id]["games"],
             game_filter,
-            f"**{discord.utils.escape_markdown(ctx.guild.name)}**",
+            f"**{ctx.guild.name.replace('*', '')}**",
         )
 
     @commands.command(aliases=["setchf"])
@@ -244,7 +243,7 @@ class DB(commands.Cog):
         try:
             del self.bot.guild_configs[ctx.guild.id]["games"][game_name]
         except KeyError:
-            await ctx.send(embed=feedback_embed(f"Game `{game_name}` not found in server filters.", False))
+            await ctx.send(f":x: Game `{game_name}` not found in server filters.")
         else:
             async with self.bot.db_connect() as db:
                 await db.execute("PRAGMA foreign_keys = ON")
@@ -252,7 +251,7 @@ class DB(commands.Cog):
                     "DELETE FROM game WHERE guild_id = ? AND channel_id = ? AND name = ?", (ctx.guild.id, 0, game_name)
                 )
                 await db.commit()
-            await ctx.send(embed=feedback_embed(f"Server filter for `{game_name}` deleted."))
+            await ctx.send(f":white_check_mark: Server filter for `{game_name}` deleted.")
 
     @commands.command(aliases=["delchf", "rmchf"])
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
@@ -261,7 +260,7 @@ class DB(commands.Cog):
         try:
             del self.bot.guild_configs[ctx.guild.id]["channels"][ctx.channel.id][game_name]
         except KeyError:
-            await ctx.send(embed=feedback_embed(f"Game `{game_name}` not found in channel filters.", False))
+            await ctx.send(f":x: Game `{game_name}` not found in channel filters.")
         else:
             async with self.bot.db_connect() as db:
                 await db.execute("PRAGMA foreign_keys = ON")
@@ -270,7 +269,7 @@ class DB(commands.Cog):
                 else:
                     await db.execute("DELETE FROM game WHERE channel_id = ? AND name = ?", (ctx.channel.id, game_name))
                 await db.commit()
-            await ctx.send(embed=feedback_embed(f"Channel filter for `{game_name}` deleted."))
+            await ctx.send(f":white_check_mark: Channel filter for `{game_name}` deleted.")
 
     @commands.command(aliases=["clearsf", "csf"])
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
@@ -280,7 +279,7 @@ class DB(commands.Cog):
         async with self.bot.db_connect() as db:
             await db.execute("DELETE FROM game WHERE guild_id = ? AND channel_id = 0", (ctx.guild.id,))
             await db.commit()
-        await ctx.send(embed=feedback_embed("Server filters cleared."))
+        await ctx.send(":white_check_mark: Server filters cleared.")
 
     @commands.command(aliases=["clearchf", "cchf"])
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
@@ -291,9 +290,9 @@ class DB(commands.Cog):
             await db.execute("PRAGMA foreign_keys = ON")
             await db.execute("DELETE FROM channel WHERE id = ?", (ctx.channel.id,))
             await db.commit()
-        await ctx.send(embed=feedback_embed("Channel filters cleared."))
+        await ctx.send(":white_check_mark: Channel filters cleared.")
 
-    @commands.command(aliases=["showblacklist"])
+    @commands.command()
     @commands.cooldown(rate=1, per=10, type=commands.BucketType.channel)
     @delete_msg
     async def showblocked(self, ctx):
@@ -309,7 +308,7 @@ class DB(commands.Cog):
         embed.set_footer(text=f"Prompted by @{ctx.author}", icon_url=ctx.author.avatar_url)
         await ctx.send(embed=embed)
 
-    @commands.command(aliases=["blacklist"])
+    @commands.command()
     @commands.is_owner()
     @delete_msg
     async def block(self, ctx, _id: int):
@@ -317,18 +316,18 @@ class DB(commands.Cog):
         if guild := self.bot.get_guild(_id):
             await guild.leave()
         await self._block(_id)
-        await ctx.send(embed=feedback_embed(f"Blocked ID `{_id}`."))
+        await ctx.send(f":white_check_mark: Blocked ID `{_id}`.")
 
-    @commands.command(aliases=["unblacklist"])
+    @commands.command()
     @commands.is_owner()
     async def unblock(self, ctx, _id: int):
         """Unblock a guild or user from using the bot."""
         try:
             self.bot.blocked.remove(_id)
         except KeyError:
-            await ctx.send(embed=feedback_embed(f"ID `{_id}` was not blocked.", False))
+            await ctx.send(f":x: ID `{_id}` was not blocked.")
         else:
-            await ctx.send(embed=feedback_embed(f"ID `{_id}` is no longer blocked."))
+            await ctx.send(f":white_check_mark: ID `{_id}` is no longer blocked.")
         finally:
             async with self.bot.db_connect() as db:
                 await db.execute("DELETE FROM blocked WHERE id = (?)", (_id,))
@@ -359,23 +358,23 @@ class DB(commands.Cog):
         async with self.bot.db_connect() as db:
             await db.execute("INSERT OR IGNORE INTO admin VALUES (?)", (user_id,))
             await db.commit()
-        await ctx.send(embed=feedback_embed(f"Added {user_id} as admin."))
+        await ctx.send(f":white_check_mark: Added {user_id} as admin.")
 
     @commands.command(aliases=["rmadmin"])
     @commands.is_owner()
     async def deladmin(self, ctx, user_id: int):
         """Remove user as bot admin if not app owner."""
         if user_id == getattr(self.bot, "app_owner_id", None):
-            return await ctx.send(embed=feedback_embed("Cannot remove app owner.", False))
+            return await ctx.send(":x: Cannot remove app owner.")
         try:
             self.bot.owner_ids.remove(user_id)
             async with self.bot.db_connect() as db:
                 await db.execute("DELETE FROM admin WHERE id = ?", (user_id,))
                 await db.commit()
         except KeyError:
-            await ctx.send(embed=feedback_embed(f"User `{user_id}` was not an admin.", False))
+            await ctx.send(f":x: User `{user_id}` was not an admin.")
         else:
-            await ctx.send(embed=feedback_embed(f"Removed `{user_id}` as admin."))
+            await ctx.send(f":white_check_mark: Removed `{user_id}` as admin.")
 
 
 def setup(bot):

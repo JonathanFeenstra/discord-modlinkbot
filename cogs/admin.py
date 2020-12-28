@@ -24,7 +24,7 @@ from ast import literal_eval
 import discord
 from discord.ext import commands
 
-from .util import SendErrorFeedback, delete_msg, feedback_embed
+from .util import delete_msg
 
 
 class Admin(commands.Cog):
@@ -42,10 +42,9 @@ class Admin(commands.Cog):
     async def config(self, ctx, setting: str, *, value):
         """Set configuration setting to value."""
         try:
-            async with SendErrorFeedback(ctx):
-                setattr(self.bot.config, setting := setting.lower(), literal_eval(value))
-        except Exception:
-            pass
+            setattr(self.bot.config, setting := setting.lower(), literal_eval(value))
+        except Exception as error:
+            await ctx.send(f":x: `{error.__class__.__name__}: {error}`")
         else:
             await ctx.send(f"Succesfully set `{setting} = {value}`.")
 
@@ -53,7 +52,7 @@ class Admin(commands.Cog):
     @delete_msg
     async def logout(self, ctx):
         """Log out the bot."""
-        await ctx.send(embed=feedback_embed("Shutting down."))
+        await ctx.send(":white_check_mark: Shutting down.")
         print(f"{self.bot.user.name} has been logged out by {ctx.author}.")
         await self.bot.close()
 
@@ -61,23 +60,11 @@ class Admin(commands.Cog):
     async def changeusername(self, ctx, *, username: str):
         """Change the bot's username."""
         try:
-            async with SendErrorFeedback(ctx):
-                await self.bot.user.edit(username=username)
-        except Exception:
-            pass
+            await self.bot.user.edit(username=username)
+        except discord.HTTPException as error:
+            await ctx.send(f":x: `{error.__class__.__name__}: {error}`")
         else:
-            await ctx.send(embed=feedback_embed(f"Username set to {repr(username)}."))
-
-    @commands.command(aliases=["nickname", "nick"])
-    async def changenickname(self, ctx, *, nickname: str = None):
-        """Change the bot's nickname in server."""
-        try:
-            async with SendErrorFeedback(ctx):
-                await ctx.guild.me.edit(nick=nickname)
-        except Exception:
-            pass
-        else:
-            await ctx.send(embed=feedback_embed(f"Nickname set to {repr(nickname)}." if nickname else "Nickname removed"))
+            await ctx.send(f":white_check_mark: Username set to {repr(username)}.")
 
     @commands.command(aliases=["avatar"])
     async def changeavatar(self, ctx, *, url: str = None):
@@ -87,13 +74,12 @@ class Admin(commands.Cog):
         else:
             url = url.strip("<>")
         try:
-            async with SendErrorFeedback(ctx):
-                async with self.bot.session.get(url) as res:
-                    await self.bot.user.edit(avatar=await res.read())
-        except Exception:
-            pass
+            async with self.bot.session.get(url) as res:
+                await self.bot.user.edit(avatar=await res.read())
+        except (discord.HTTPException, discord.InvalidArgument) as error:
+            await ctx.send(f":x: `{error.__class__.__name__}: {error}`")
         else:
-            await ctx.send(embed=feedback_embed("Avatar changed."))
+            await ctx.send(":white_check_mark: Avatar changed.")
 
     @commands.command(aliases=["guildlist", "servers", "serverlist"])
     @commands.cooldown(rate=1, per=30, type=commands.BucketType.channel)
