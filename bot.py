@@ -4,7 +4,7 @@ discord-modlinkbot
 
 A Discord bot for linking Nexus Mods search results.
 
-Copyright (C) 2019-2020 Jonathan Feenstra
+Copyright (C) 2019-2021 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -21,7 +21,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 import re
 import traceback
-from collections import defaultdict
 from datetime import datetime
 from functools import partial
 from itertools import groupby
@@ -35,14 +34,16 @@ from discord.ext import commands
 
 import config
 
+__version__ = "0.1a1"
 
-def _default_guild_config(**kwargs):
-    """If no keyword arguments are provided, return default guild configuration, otherwise return `dict(**kwargs)`."""
-    return (
-        dict(**kwargs)
-        if kwargs
-        else {"prefix": ".", "games": defaultdict(dict), "channels": defaultdict(dict), "joined_at": datetime.now()}
-    )
+
+async def get_prefix(bot, msg):
+    """Check `msg` for valid command prefixes."""
+    if msg.guild:
+        async with bot.db_connect() as con:
+            async with con.execute("SELECT prefix FROM guild WHERE guild_id = ?", (msg.guild.id,)) as cur:
+                return commands.when_mentioned_or(*(await cur.fetchone()) or ".")(bot, msg)
+    return commands.when_mentioned_or(".")(bot, msg)
 
 
 async def get_guild_invite(guild):
@@ -54,17 +55,16 @@ async def get_guild_invite(guild):
                 return invite.url
     if not (guild.channels and guild.me.guild_permissions.create_instant_invite):
         return ""
-    if (channel := guild.system_channel or guild.rules_channel or guild.public_updates_channel) and channel.permissions_for(
-        guild.me
-    ).create_instant_invite:
+    channel = guild.system_channel or guild.rules_channel or guild.public_updates_channel
+    if channel and channel.permissions_for(guild.me).create_instant_invite:
         try:
-            return (await channel.create_invite()).url
+            return (await channel.create_invite(unique=False)).url
         except (discord.HTTPException, discord.NotFound):
             pass
     for channel in guild.channels:
         if channel.permissions_for(guild.me).create_instant_invite:
             try:
-                return (await channel.create_invite()).url
+                return (await channel.create_invite(unique=False)).url
             except (discord.HTTPException, discord.NotFound):
                 continue
     return ""
@@ -104,18 +104,18 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
         """Send help embed for when no help arguments are specified."""
         ctx = self.context
         bot = ctx.bot
-        prefix = bot.guild_configs[ctx.guild.id].get("prefix", ".")
+        prefix = (await get_prefix(bot, ctx.message))[-1]
         description = [self.description]
 
-        if bot.get_cog("DB"):
+        if bot.get_cog("Games"):
             description.append(
-                f"Use `{prefix}help setsf` for an explanation about how to configure Nexus Mods search for a server, or "
-                f"`{prefix}help setchf` for a channel."
+                f"Use `{prefix}help ag s` for an explanation about how to configure Nexus Mods search for a server, or "
+                f"`{prefix}help ag c` for a channel."
             )
         else:
             description.append(
-                f"**Important:** Load the DB extension to enable search configuration settings using `{prefix}load db` "
-                "(can only be done by bot admins)."
+                "**Important:** Load the Games extension to enable search configuration settings using "
+                f"`{prefix}load games` (can only be done by bot admins)."
             )
         if not bot.get_cog("ModSearch"):
             description.append(
@@ -163,9 +163,7 @@ class ModLinkBot(commands.Bot):
     def __init__(self):
         """Initialise bot."""
         super().__init__(
-            command_prefix=lambda bot, msg: commands.when_mentioned_or(
-                bot.guild_configs[msg.guild.id].get("prefix", ".") if msg.guild else "."
-            )(bot, msg),
+            command_prefix=get_prefix,
             help_command=ModLinkBotHelpCommand(),
             status=discord.Status.idle,
             owner_ids=getattr(config, "owner_ids", set()).copy(),
@@ -173,73 +171,31 @@ class ModLinkBot(commands.Bot):
         )
 
         self.config = config
-        self.guild_configs = defaultdict(_default_guild_config)
-        self.blocked = set()
         self.db_connect = partial(
             connect, getattr(self.config, "db_path", "modlinkbot.db"), detect_types=PARSE_DECLTYPES | PARSE_COLNAMES
         )
+        # https://help.nexusmods.com/article/114-api-acceptable-use-policy
+        self.api_headers = {
+            "Application-Version": __version__,
+            "Application-Name": "discord-modlinkbot",
+            "User-Agent": f"discord-modlinkbot/{__version__} (+https://github.com/JonathanFeenstra/discord-modlinkbot)",
+            "Accept": "application/json",
+            "apikey": config.nexus_api_key,
+        }
+        self.html_user_agent = (
+            f"Mozilla/5.0 (compatible; discord-modlinkbot/{__version__};"
+            " +https://github.com/JonathanFeenstra/discord-modlinkbot)"
+        )
+        self.blocked = set()
 
-        for extension in ("admin", "db", "modsearch", "util"):
+        self.loop.create_task(self.startup())
+
+        for extension in ("admin", "games", "general", "modsearch"):
             try:
                 self.load_extension(f"cogs.{extension}")
             except Exception as error:
                 print(f"Failed to load extension {extension}: {error}", file=stderr)
                 traceback.print_exc()
-
-        self.loop.create_task(self.startup())
-
-    async def _create_db(self):
-        """"Create SQLite database tables if they don't exist yet."""
-        async with self.db_connect() as db:
-            await db.execute("PRAGMA foreign_keys = ON")
-            await db.execute(
-                """
-                CREATE TABLE
-                IF NOT EXISTS guild (
-                    id INTEGER NOT NULL PRIMARY KEY,
-                    prefix TEXT NOT NULL DEFAULT '.',
-                    joined_at TIMESTAMP NOT NULL
-                )
-            """
-            )
-            await db.execute(
-                """
-                CREATE TABLE
-                IF NOT EXISTS channel (
-                    id INTEGER NOT NULL PRIMARY KEY,
-                    guild_id INTEGER NOT NULL REFERENCES guild ON DELETE CASCADE
-                )
-            """
-            )
-            await db.execute(
-                """
-                CREATE TABLE
-                IF NOT EXISTS game (
-                    guild_id INTEGER NOT NULL REFERENCES guild ON DELETE CASCADE,
-                    channel_id INTEGER NOT NULL DEFAULT 0 REFERENCES channel ON DELETE CASCADE,
-                    name TEXT NOT NULL,
-                    filter TEXT,
-                    PRIMARY KEY(guild_id, channel_id, name)
-                )
-            """
-            )
-            await db.execute(
-                """
-                CREATE TABLE
-                IF NOT EXISTS blocked (
-                    id INTEGER NOT NULL PRIMARY KEY
-                )
-            """
-            )
-            await db.execute(
-                """
-                CREATE TABLE
-                IF NOT EXISTS admin (
-                    id INTEGER NOT NULL PRIMARY KEY
-                )
-            """
-            )
-            await db.commit()
 
     async def _update_presence(self):
         """Update the bot's presence with the number of guilds."""
@@ -250,59 +206,37 @@ class ModLinkBot(commands.Bot):
             )
         )
 
-    async def _update_invite_info(self, guild, limit=50):
-        """Update guild configuration with data of bot invite when found."""
-        guild_config = self.guild_configs[guild.id]
+    async def _get_add_info(self, guild, limit=50):
+        """Get log entry of the addition of the bot to the specified guild when found."""
         if guild.me.guild_permissions.view_audit_log:
             async for log_entry in guild.audit_logs(action=discord.AuditLogAction.bot_add, limit=limit):
                 if log_entry.target == guild.me:
                     if log_entry.user.id in self.blocked:
                         return await guild.leave()
-                    guild_config["inviter_name"] = str(log_entry.user)
-                    guild_config["inviter_id"] = log_entry.user.id
-                    guild_config["joined_at"] = log_entry.created_at
-                    break
-        async with self.db_connect() as db:
-            await db.execute(
-                "INSERT OR IGNORE INTO guild VALUES (?, ?, ?)",
-                (guild.id, ".", guild_config.get("joined_at", datetime.now())),
-            )
-            await db.commit()
+                    return log_entry
+        return None
 
     async def _update_guild_configs(self):
         """Update configurations of guilds that joined or left while offline."""
-        async with self.db_connect() as db:
-            await db.execute("PRAGMA foreign_keys = ON")
-            await db.execute(f"DELETE FROM guild WHERE id NOT IN ({', '.join(str(guild.id) for guild in self.guilds)})")
-            await db.commit()
-            async with db.execute("SELECT * FROM guild") as cur:
-                guilds = await cur.fetchall()
-            for guild_id, prefix, joined_at in guilds:
-                self.guild_configs.update(
-                    {
-                        guild_id: {
-                            "prefix": prefix,
-                            "games": defaultdict(dict),
-                            "channels": defaultdict(dict),
-                            "joined_at": joined_at,
-                        }
-                    }
-                )
-            async with db.execute("SELECT * FROM game") as cur:
-                games = await cur.fetchall()
-            for guild_id, channel_id, game_name, game_filter in games:
-                if not (guild := self.get_guild(guild_id)):
-                    await db.execute("DELETE FROM guild WHERE id = ?", (guild_id,))
-                elif not channel_id:
-                    self.guild_configs[guild_id]["games"][game_name] = game_filter
-                elif guild.get_channel(channel_id):
-                    self.guild_configs[guild_id]["channels"][channel_id][game_name] = game_filter
-                else:
-                    await db.execute("DELETE FROM channel WHERE id = ?", (channel_id,))
-            await db.commit()
+        async with self.db_connect() as con:
+            await con.execute("PRAGMA foreign_keys = ON")
+            await con.execute(
+                f"DELETE FROM guild WHERE guild_id NOT IN ({', '.join(str(guild.id) for guild in self.guilds)})"
+            )
+            await con.commit()
+
+            db_guilds = [row[0] for row in await con.execute_fetchall("SELECT guild_id FROM guild")]
+
+            async with con.execute("SELECT * FROM channel") as cur:
+                async for channel_id, guild_id in cur:
+                    if not (guild := self.get_guild(guild_id)):
+                        await con.execute("DELETE FROM guild WHERE guild_id = ?", (guild_id,))
+                    elif channel_id and not guild.get_channel(channel_id):
+                        await con.execute("DELETE FROM channel WHERE guild_id = ?", (channel_id,))
+            await con.commit()
 
         for guild in self.guilds:
-            if guild.id not in self.guild_configs:
+            if guild.id not in db_guilds:
                 await self.on_guild_join(guild)
 
     def validate_guild(self, guild):
@@ -316,35 +250,30 @@ class ModLinkBot(commands.Bot):
 
     def validate_msg(self, msg):
         """Check if message is valid to be processed."""
-        return (
-            not msg.author.bot
-            and msg.author.id not in self.blocked
-            and self.validate_guild(msg.guild)
-            and msg.channel.id not in self.blocked
-        )
+        return not msg.author.bot and msg.author.id not in self.blocked and isinstance(msg.guild, discord.Guild)
 
     async def startup(self):
         """Perform startup tasks, prepare database and configurations."""
         self.session = ClientSession(loop=self.loop)
         self.adapter = discord.AsyncWebhookAdapter(self.session)
-        await self._create_db()
-        await self.wait_until_ready()
 
-        async with self.db_connect() as db:
-            async with db.execute("SELECT id FROM blocked") as cur:
-                blocked_ids = await cur.fetchall()
-            self.blocked.update(*blocked_ids)
+        async with self.db_connect() as con:
+            with open("modlinkbot_db.ddl") as ddl:
+                await con.executescript(ddl.read())
+            await con.commit()
 
-            async with db.execute("SELECT id FROM admin") as cur:
-                admin_ids = await cur.fetchall()
+            self.blocked.update(*(await con.execute_fetchall("SELECT blocked_id FROM blocked")))
+
+            admin_ids = await con.execute_fetchall("SELECT admin_id FROM admin")
             self.owner_ids.update(*admin_ids)
 
             self.app_owner_id = (await self.application_info()).owner.id
             self.owner_ids.add(self.app_owner_id)
             if self.app_owner_id not in admin_ids:
-                await db.execute("INSERT OR IGNORE INTO admin VALUES (?)", (self.app_owner_id,))
-                await db.commit()
+                await con.execute("INSERT OR IGNORE INTO admin VALUES (?)", (self.app_owner_id,))
+                await con.commit()
 
+        await self.wait_until_ready()
         await self._update_guild_configs()
         print(f"{self.user.name} has been summoned.")
 
@@ -358,15 +287,12 @@ class ModLinkBot(commands.Bot):
             return
         await self.process_commands(msg)
 
-    async def on_guild_join_or_leave(self, guild, join=True):
-        """Update shown guild info on join/leave."""
-        await self._update_presence()
-        if not (webhook_url := getattr(self.config, "webhook_url", False)):
-            return
+    async def log_guild_change(self, webhook_url, guild, add_info=True):
+        """Send webhook log message when guild joins or leaves."""
         guild_string = f"**{discord.utils.escape_markdown(guild.name)}** ({guild.id})"
         embed = discord.Embed(
             description=(
-                ":inbox_tray: {0} has been added to {1}." if join else ":outbox_tray: {0} has been removed from {1}."
+                ":inbox_tray: {0} has been added to {1}." if add_info else ":outbox_tray: {0} has been removed from {1}."
             ).format(self.user.mention, guild_string),
             colour=guild.me.colour.value or 14323253,
         )
@@ -376,29 +302,26 @@ class ModLinkBot(commands.Bot):
             embed.add_field(name="Description", value=description, inline=False)
 
         embed.add_field(name="Member count", value=str(guild.member_count))
-        if owner := guild.owner:
-            embed.set_footer(text=f"Owner: @{owner} ({owner.id}) | Server created", icon_url=owner.avatar_url)
+        if log_author := guild.owner:
+            embed.set_footer(text=f"Owner: @{log_author} ({log_author.id}) | Created at", icon_url=log_author.avatar_url)
         else:
-            embed.set_footer(text="Server created")
+            log_author = self.user
 
-        guild_config = self.guild_configs[guild.id]
-        if (inviter_id := guild_config.get("inviter_id")) and (inviter := guild.get_member(inviter_id)):
-            author = inviter
-            if join:
-                embed.description = f":inbox_tray: **@{inviter}** has added {self.user.mention} to {guild_string}."
+        if add_info:
+            if bot_inviter := getattr(add_info, "user", False):
+                embed.description = f":inbox_tray: **@{bot_inviter}** has added {self.user.mention} to {guild_string}."
+                log_author = bot_inviter
+            else:
+                embed.description = f":inbox_tray: {self.user.mention} has been added to {guild_string}."
+            if invite := await get_guild_invite(guild):
+                embed.set_author(name=guild.name, url=invite, icon_url=guild.icon_url)
+                embed.add_field(name="Invite link", value=invite, inline=False)
         else:
-            author = owner or self.user
-
-        author_icon_url = guild.icon_url or guild.splash_url
-        if join and (invite := await get_guild_invite(guild)):
-            embed.set_author(name=guild.name, url=invite, icon_url=author_icon_url)
-            embed.add_field(name="Invite link", value=invite, inline=False)
-        else:
-            embed.set_author(name=guild.name, icon_url=author_icon_url)
+            embed.set_author(name=guild.name, icon_url=guild.icon_url)
 
         try:
             await discord.Webhook.partial(*webhook_url.split("/")[-2:], adapter=self.adapter).send(
-                embed=embed, username=f"{author} ({author.id})", avatar_url=author.avatar_url
+                embed=embed, username=f"{log_author} ({log_author.id})", avatar_url=log_author.avatar_url
             )
         except (discord.HTTPException, discord.NotFound, discord.Forbidden) as error:
             print(f"{error.__class__.__name__}: {error}", file=stderr)
@@ -408,33 +331,37 @@ class ModLinkBot(commands.Bot):
         """Set default guild configuration when joining a guild."""
         if not self.validate_guild(guild):
             return await guild.leave()
-        self.guild_configs[guild.id] = _default_guild_config()
-        await self._update_invite_info(guild)
-        await self.on_guild_join_or_leave(guild, True)
+        add_info = await self._get_add_info(guild)
+        async with self.db_connect() as con:
+            await con.execute(
+                "INSERT OR IGNORE INTO guild VALUES (?, '.', ?, 1)",
+                (guild.id, getattr(add_info, "joined_at", datetime.now())),
+            )
+            await con.commit()
+        await self._update_presence()
+        if webhook_url := getattr(self.config, "webhook_url", False):
+            await self.log_guild_change(webhook_url, guild, add_info or True)
 
     async def on_guild_remove(self, guild):
         """Remove guild configuration when leaving a guild."""
         if not self.validate_guild(guild):
             return
-        self.guild_configs.pop(guild.id, None)
-        async with self.db_connect() as db:
-            await db.execute("PRAGMA foreign_keys = ON")
-            await db.execute("DELETE FROM guild WHERE id = ?", (guild.id,))
-            await db.commit()
-        await self.on_guild_join_or_leave(guild, False)
+        async with self.db_connect() as con:
+            await con.execute("PRAGMA foreign_keys = ON")
+            await con.execute("DELETE FROM guild WHERE guild_id = ?", (guild.id,))
+            await con.commit()
+        await self._update_presence()
+        if webhook_url := getattr(self.config, "webhook_url", False):
+            await self.log_guild_change(webhook_url, guild, False)
 
     async def on_guild_channel_delete(self, channel):
         """Delete channel from database on deletion."""
         if not isinstance(channel, discord.TextChannel):
             return
-        try:
-            del self.guild_configs[channel.guild.id]["channels"][channel.id]
-        except KeyError:
-            pass
-        async with self.db_connect() as db:
-            await db.execute("PRAGMA foreign_keys = ON")
-            await db.execute("DELETE FROM channel WHERE id = ?", (channel.id,))
-            await db.commit()
+        async with self.db_connect() as con:
+            await con.execute("PRAGMA foreign_keys = ON")
+            await con.execute("DELETE FROM channel WHERE channel_id = ?", (channel.id,))
+            await con.commit()
 
     async def on_command_error(self, ctx, error):
         """Handle command exceptions."""

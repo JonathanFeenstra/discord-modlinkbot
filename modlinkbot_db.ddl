@@ -1,0 +1,38 @@
+PRAGMA foreign_keys = ON;
+CREATE TABLE
+IF NOT EXISTS guild (
+    guild_id INTEGER NOT NULL PRIMARY KEY,
+    prefix TEXT NOT NULL DEFAULT '.',
+    joined_at TIMESTAMP NOT NULL,
+    nsfw INTEGER NOT NULL DEFAULT 1
+);
+CREATE TABLE
+IF NOT EXISTS channel (
+    channel_id INTEGER NOT NULL PRIMARY KEY,
+    guild_id INTEGER NOT NULL REFERENCES guild ON DELETE CASCADE
+);
+CREATE TABLE
+IF NOT EXISTS game (
+    game_id INTEGER NOT NULL PRIMARY KEY,
+    dir TEXT,
+    name TEXT NOT NULL
+);
+CREATE TABLE
+IF NOT EXISTS search_task (
+    guild_id INTEGER NOT NULL REFERENCES guild ON DELETE CASCADE,
+    channel_id INTEGER NOT NULL DEFAULT 0 REFERENCES channel ON DELETE CASCADE,
+    game_id INTEGER NOT NULL REFERENCES game ON DELETE CASCADE,
+    PRIMARY KEY(guild_id, channel_id, game_id)
+);
+CREATE TABLE
+IF NOT EXISTS blocked (
+    blocked_id INTEGER NOT NULL PRIMARY KEY
+);
+CREATE TABLE
+IF NOT EXISTS admin (
+    admin_id INTEGER NOT NULL PRIMARY KEY
+);
+
+INSERT OR IGNORE INTO game VALUES(0, "all", "All games");
+INSERT OR IGNORE INTO game VALUES(110, "skyrim", "Skyrim Classic");
+INSERT OR IGNORE INTO game VALUES(1704, "skyrimspecialedition", "Skyrim Special Edition");

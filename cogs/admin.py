@@ -4,7 +4,7 @@ Admin
 
 Cog for providing bot owner/admin-only commands.
 
-Copyright (C) 2019-2020 Jonathan Feenstra
+Copyright (C) 2019-2021 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@ from ast import literal_eval
 import discord
 from discord.ext import commands
 
-from .util import delete_msg
+from .general import delete_msg
 
 
 class Admin(commands.Cog):
@@ -33,6 +33,13 @@ class Admin(commands.Cog):
     def __init__(self, bot):
         """Initialise cog."""
         self.bot = bot
+
+    async def _block(self, _id: int):
+        """Block a guild or user."""
+        self.bot.blocked.add(_id)
+        async with self.bot.db_connect() as con:
+            await con.execute("INSERT OR IGNORE INTO blocked VALUES (?)", (_id,))
+            await con.commit()
 
     async def cog_check(self, ctx):
         """Checks if context author is a bot admin for every command in this cog."""
@@ -87,10 +94,16 @@ class Admin(commands.Cog):
         """Send list of guilds that bot is a member of."""
         guilds_info = [f"{'Name': <32}Members  Joined (d/m/y)"]
 
-        for guild in self.bot.guilds[:50]:
-            name = guild.name if len(guild.name) <= 30 else f"{guild.name[:27]}..."
-            join_date = self.bot.guild_configs[guild.id]["joined_at"].strftime("%d/%m/%Y")
-            guilds_info.append(f"{name: <32}{f'{guild.member_count:,}': <9}{join_date}")
+        async with self.bot.db_connect() as con:
+            guilds = await con.exexute_fetchall("SELECT guild_id, joined_at FROM guild LIMIT 50")
+            for guild_id, joined_at in guilds:
+                if guild := self.bot.get_guild(guild_id):
+                    name = guild.name if len(guild.name) <= 30 else f"{guild.name[:27]}..."
+                    join_date = joined_at.strftime("%d/%m/%Y")
+                    guilds_info.append(f"{name: <32}{f'{guild.member_count:,}': <9}{join_date}")
+                else:
+                    await con.execute("DELETE FROM guild WHERE guild_id = ?", (guild_id,))
+            await con.commit()
 
         description = discord.utils.escape_markdown("\n".join(guilds_info))
         embed = discord.Embed(
@@ -100,6 +113,61 @@ class Admin(commands.Cog):
         )
         embed.set_footer(text=f"Prompted by @{ctx.author}", icon_url=ctx.author.avatar_url)
         await ctx.send(embed=embed)
+
+    @commands.command(aliases=["admin"])
+    @delete_msg
+    async def makeadmin(self, ctx, user_id: int):
+        """Make user a bot admin."""
+        self.bot.owner_ids.add(user_id)
+        async with self.bot.db_connect() as con:
+            await con.execute("INSERT OR IGNORE INTO admin VALUES (?)", (user_id,))
+            await con.commit()
+        await ctx.send(f":white_check_mark: Added {user_id} as admin.")
+
+    @commands.command(aliases=["rmadmin"])
+    async def deladmin(self, ctx, user_id: int):
+        """Remove user as bot admin if not app owner."""
+        if user_id == getattr(self.bot, "app_owner_id", None):
+            return await ctx.send(":x: Cannot remove app owner.")
+        try:
+            self.bot.owner_ids.remove(user_id)
+            async with self.bot.db_connect() as con:
+                await con.execute("DELETE FROM admin WHERE admin_id = ?", (user_id,))
+                await con.commit()
+        except KeyError:
+            await ctx.send(f":x: User `{user_id}` was not an admin.")
+        else:
+            await ctx.send(f":white_check_mark: Removed `{user_id}` as admin.")
+
+    @commands.command()
+    @delete_msg
+    async def block(self, ctx, _id: int):
+        """Block a guild or user from using the bot."""
+        if guild := self.bot.get_guild(_id):
+            await guild.leave()
+        await self._block(_id)
+        await ctx.send(f":white_check_mark: Blocked ID `{_id}`.")
+
+    @commands.command()
+    async def unblock(self, ctx, _id: int):
+        """Unblock a guild or user from using the bot."""
+        try:
+            self.bot.blocked.remove(_id)
+        except KeyError:
+            await ctx.send(f":x: ID `{_id}` was not blocked.")
+        else:
+            await ctx.send(f":white_check_mark: ID `{_id}` is no longer blocked.")
+        finally:
+            async with self.bot.db_connect() as con:
+                await con.execute("DELETE FROM blocked WHERE blocked_id = (?)", (_id,))
+                await con.commit()
+
+    @commands.Cog.listener()
+    async def on_member_ban(self, guild, user):
+        """Block and leave guild if the bot's app owner is banned."""
+        if user.id == getattr(self.bot, "app_owner_id", None):
+            await self._block(guild.id)
+            await guild.leave()
 
 
 def setup(bot):
