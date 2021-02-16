@@ -397,9 +397,9 @@ if __name__ == "__main__":
 
         Available extensions:
         - admin
-        - db
+        - games
+        - general
         - modsearch
-        - util
         """
         try:
             modlinkbot.load_extension(f"cogs.{cog}")
