@@ -245,11 +245,18 @@ class ModSearch(commands.Cog):
             (query,) = queries
             if len(games) > 1:
                 embed.title = f"Search results for: **{repr(WHITESPACE_RE.sub(' ', query))}**"
+                responses = dict()
                 for game_id, game_name in games:
                     if response := await self.nexus_search(nexus_search_params(query, game_id, include_adult)):
-                        await self._add_result_field(embed, game_name, response)
-                if not embed.fields:
+                        responses[game_name] = response
+                if not responses:
                     add_no_results_field(embed, query)
+                elif len(responses) == 1:
+                    ((game_name, response),) = responses.items()
+                    await self._embed_single_result(embed, game_name, response, ctx.channel.is_nsfw())
+                else:
+                    for game_name, response in responses.items():
+                        await self._add_result_field(embed, game_name, response)
             elif (response := await self.nexus_search(nexus_search_params(query, games[0][0], include_adult))) is None:
                 add_no_results_field(embed, query)
             else:
