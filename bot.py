@@ -34,7 +34,12 @@ from discord.ext import commands
 
 import config
 
-__version__ = "0.1a1"
+from aionxm import RequestHandler
+
+__version__ = "0.1a2"
+
+
+GITHUB_URL = "https://github.com/JonathanFeenstra/discord-modlinkbot"
 
 
 async def get_prefix(bot, msg):
@@ -129,10 +134,10 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
         )
         embed.add_field(
             name="Links",
-            value="[Discord Bot List](https://top.gg/bot/665861255051083806) | "
-            "[GitHub](https://github.com/JonathanFeenstra/discord-modlinkbot) | "
-            "[Add to your server](https://discordapp.com/oauth2/authorize?client_id="
-            f"{bot.user.id}&permissions=67136705&scope=bot)",
+            value=(
+                f"[Discord Bot List](https://top.gg/bot/665861255051083806) | [GitHub]({GITHUB_URL}) | [Add to your server]"
+                f"(https://discordapp.com/oauth2/authorize?client_id={bot.user.id}&permissions=67136705&scope=bot)"
+            ),
             inline=False,
         )
         embed.set_footer(text=f"Prompted by @{ctx.author}", icon_url=ctx.author.avatar_url)
@@ -174,22 +179,11 @@ class ModLinkBot(commands.Bot):
         self.db_connect = partial(
             connect, getattr(self.config, "db_path", "modlinkbot.db"), detect_types=PARSE_DECLTYPES | PARSE_COLNAMES
         )
-        # https://help.nexusmods.com/article/114-api-acceptable-use-policy
-        self.api_headers = {
-            "Application-Version": __version__,
-            "Application-Name": "discord-modlinkbot",
-            "User-Agent": f"discord-modlinkbot/{__version__} (+https://github.com/JonathanFeenstra/discord-modlinkbot)",
-            "Accept": "application/json",
-            "apikey": config.nexus_api_key,
-        }
-        self.html_user_agent = (
-            f"Mozilla/5.0 (compatible; discord-modlinkbot/{__version__};"
-            " +https://github.com/JonathanFeenstra/discord-modlinkbot)"
-        )
         self.blocked = set()
-
         self.loop.create_task(self.startup())
 
+    def _load_extensions(self):
+        """Load all bot extensions."""
         for extension in ("admin", "games", "general", "modsearch"):
             try:
                 self.load_extension(f"cogs.{extension}")
@@ -256,6 +250,9 @@ class ModLinkBot(commands.Bot):
         """Perform startup tasks, prepare database and configurations."""
         self.session = ClientSession(loop=self.loop)
         self.adapter = discord.AsyncWebhookAdapter(self.session)
+        self.nxm_request_handler = RequestHandler(
+            self.session, self.config.nexus_api_key, "discord-modlinkbot", __version__, GITHUB_URL
+        )
 
         async with self.db_connect() as con:
             with open("modlinkbot_db.ddl") as ddl:
@@ -275,6 +272,8 @@ class ModLinkBot(commands.Bot):
 
         await self.wait_until_ready()
         await self._update_guild_configs()
+
+        self._load_extensions()
         print(f"{self.user.name} has been summoned.")
 
     async def on_ready(self):

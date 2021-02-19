@@ -19,17 +19,12 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
-import re
-
 import discord
 from discord.ext import commands
+from aiohttp import ClientResponseError
 
+from aionxm import NotFound
 from .general import delete_msg
-
-# Match Nexus Mods game name in HTML
-GAME_NAME_RE = re.compile(r":: (?P<game_name>.*?)\"")
-# Match Nexus Mods game ID in HTML
-GAME_ID_RE = re.compile(r"https://staticdelivery\.nexusmods\.com/Images/games/4_3/tile_(?P<game_id>[0-9]{1,4})")
 
 
 class Games(commands.Cog):
@@ -66,26 +61,18 @@ class Games(commands.Cog):
 
     async def _get_game_info(self, game_dir: str):
         """"Retrieve the Nexus Mods game info for the specified game directory."""
-        async with self.bot.session.get(
-            f"https://api.nexusmods.com/v1/games/{game_dir}.json", headers=self.bot.api_headers
-        ) as res:
-            if res.status == 200:
-                game = await res.json()
-                game_name, game_id = game["name"], game["id"]
-            else:
-                # Fallback: web-scraping
-                async with self.bot.session.get(
-                    f"https://www.nexusmods.com/{game_dir}",
-                    headers={"User-Agent": self.bot.html_user_agent, "Accept": "text/html"},
-                ) as res:
-                    if res.status != 200:
-                        return None
-                    content = (await res.content.read(700)).decode("utf-8")
-                    if (
-                        not (game_name := GAME_NAME_RE.search(content).group("game_name"))
-                        or (game_id := GAME_ID_RE.search(content).group("game_id")) == "0"
-                    ):
-                        return None
+        try:
+            game = await self.bot.nxm_request_handler.get_game_data(game_dir)
+        except ClientResponseError:
+            try:
+                game_id, game_name = await self.bot.nxm_request_handler.scrape_game_data(game_dir)
+                if game_id == 0:
+                    return None
+            except (ClientResponseError, NotFound):
+                return None
+        else:
+            game_name, game_id = game["name"], game["id"]
+
         result = self.games[game_dir] = {game_name: game_id}
         async with self.bot.db_connect() as con:
             await con.execute("INSERT OR IGNORE INTO game VALUES (?, ?, ?)", (game_id, game_dir, game_name))
@@ -94,8 +81,18 @@ class Games(commands.Cog):
 
     async def _update_games(self):
         """Update games with data from database."""
-        await self.bot.wait_until_ready()
+        print("Updating games...")
         async with self.bot.db_connect() as con:
+            try:
+                nexus_games = await self.bot.nxm_request_handler.get_all_games(False)
+                for game in nexus_games:
+                    await con.execute(
+                        "INSERT OR IGNORE INTO game VALUES (?, ?, ?)", (game["id"], game["domain_name"], game["name"])
+                    )
+                await con.commit()
+                print("Games updated.")
+            except ClientResponseError:
+                pass
             db_games = await con.execute_fetchall("SELECT * FROM game")
             for game_id, game_dir, game_name in db_games:
                 self.games[game_dir] = {game_name: game_id}
