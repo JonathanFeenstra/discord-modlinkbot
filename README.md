@@ -15,7 +15,7 @@ This functionality is based on [u/modlinkbot on Reddit](https://www.reddit.com/r
 Detailed descriptions of commands and their usage are shown by using the `.help` command.
 ## Self-hosting
 ### Requirements
-- [Python](https://www.python.org/downloads/) >= 3.8
+- [Python](https://www.python.org/downloads/) >= 3.9
 - [aiohttp]() >= 3.7.3
 - [aiosqlite](https://aiosqlite.omnilib.dev/en/stable/) >= 0.15.0
 - [discord.py](https://github.com/Rapptz/discord.py) == 1.6.0
