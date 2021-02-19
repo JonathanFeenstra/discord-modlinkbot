@@ -27,6 +27,9 @@ from aionxm import NotFound
 from .general import delete_msg
 
 
+INCLUDE_NSFW_MODS = {0: "Never", 1: "Always", 2: "Only in NSFW channels"}
+
+
 class Games(commands.Cog):
     """Cog to manage game configurations per server/channel."""
 
@@ -138,6 +141,9 @@ class Games(commands.Cog):
                     embed.add_field(
                         name=f"Default games in **{ctx.guild.name}**", value=", ".join(guild_games), inline=False
                     )
+                async with con.execute("SELECT nsfw FROM guild WHERE guild_id = ?", (ctx.guild.id,)) as cur:
+                    nsfw = (await cur.fetchone())[0]
+                    embed.add_field(name="Include NSFW mods?", value=INCLUDE_NSFW_MODS[nsfw])
             else:
                 embed.description = ":x: No games are configured in this channel/server."
         await ctx.send(embed=embed)

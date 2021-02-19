@@ -87,7 +87,7 @@ class RequestHandler:
         """Get JSON response with data about all games."""
         async with self.session.get(
             f"{API_BASE_URL}games.json",
-            params={"include_unapproved": int(include_unapproved)},
+            params={"include_unapproved": str(include_unapproved).lower()},
             headers=self.api_headers,
             raise_for_status=True,
         ) as res:
@@ -134,7 +134,11 @@ class RequestHandler:
         async with self.session.get(
             "https://search.nexusmods.com/mods",
             params=dict(
-                terms=parse_query(query), game_id=game_id, include_adult=int(include_adult), timeout=timeout, **params
+                terms=parse_query(query),
+                game_id=game_id,
+                include_adult=str(include_adult).lower(),
+                timeout=timeout,
+                **params,
             ),
             headers={"User-Agent": self.html_user_agent, "Accept": "application/json"},
             raise_for_status=True,

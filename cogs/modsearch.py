@@ -202,7 +202,7 @@ class ModSearch(commands.Cog):
             n_fields = len(embed.fields)
             for game_id, game_name in games:
                 try:
-                    if (response := await self.nexus_search(query, game_id, nsfw)).get("results"):
+                    if (response := await self.nexus_search(query, game_id, bool(nsfw))).get("results"):
                         add_result_field(embed, game_name, response)
                 except ClientResponseError as error:
                     add_response_error_field(embed, error, query, game_name)
@@ -214,7 +214,7 @@ class ModSearch(commands.Cog):
         responses = dict()
         for game_id, game_name in games:
             try:
-                if (response := await self.nexus_search(query, game_id, nsfw)).get("results"):
+                if (response := await self.nexus_search(query, game_id, bool(nsfw))).get("results"):
                     responses[game_name] = response
             except ClientResponseError as error:
                 responses[game_name] = error
@@ -242,7 +242,7 @@ class ModSearch(commands.Cog):
                 await self._embed_single_query_results(embed, query, games, nsfw)
             else:
                 try:
-                    response = await self.nexus_search(query, games[0][0], nsfw)
+                    response = await self.nexus_search(query, games[0][0], bool(nsfw))
                 except ClientResponseError as error:
                     embed_response_error(embed, error, query, games[0][1])
                 if response.get("results"):
