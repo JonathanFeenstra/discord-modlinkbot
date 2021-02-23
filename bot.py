@@ -35,7 +35,7 @@ import config
 
 from aionxm import RequestHandler
 
-__version__ = "0.1a3"
+__version__ = "0.1a4"
 
 
 GITHUB_URL = "https://github.com/JonathanFeenstra/discord-modlinkbot"

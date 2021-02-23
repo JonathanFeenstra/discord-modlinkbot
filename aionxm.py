@@ -23,6 +23,8 @@ import asyncio
 import platform
 import re
 
+from urllib.parse import quote
+
 from typing import Optional
 from aiohttp import ClientSession
 
@@ -117,7 +119,7 @@ class RequestHandler:
     async def scrape_game_data(self, game_dir: str) -> tuple[int, str]:
         """Scrape game ID and name from HTML."""
         async with self.session.get(
-            f"{HTML_BASE_URL}{game_dir}",
+            f"{HTML_BASE_URL}{quote(game_dir)}",
             headers={"User-Agent": self.html_user_agent, "Accept": "text/html"},
             raise_for_status=True,
         ) as res:
@@ -131,7 +133,7 @@ class RequestHandler:
     async def scrape_profile_icon_url(self, user_id: int) -> str:
         """Scrape profile icon URL for the user with the specified `user_id`."""
         async with self.session.get(
-            f"{HTML_BASE_URL}users/{user_id}",
+            f"{HTML_BASE_URL}users/{quote(str(user_id))}",
             headers={"User-Agent": self.html_user_agent, "Accept": "text/html"},
             raise_for_status=True,
         ) as res:

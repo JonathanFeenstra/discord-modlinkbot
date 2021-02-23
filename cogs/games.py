@@ -36,17 +36,15 @@ class Games(commands.Cog):
     def __init__(self, bot):
         """Initialise cog and update guild configuration with database content."""
         self.bot = bot
-        self.games = {
-            "skyrimboth": {"Skyrim Special Edition": 1704, "Skyrim Classic": 110},
-        }
+        self.games = dict()
         self.bot.loop.create_task(self._update_games())
 
     async def _add_game(self, ctx, game_dir: str, channel_id=0):
         """Add game to search for in the specified channel (or guild if `channel_id=0`)."""
-        if not (game := self.games.get(game_dir)):
-            await self._update_games()
-            if not (game := self.games.get(game_dir)):
-                return await ctx.send(f":x: Game https://www.nexusmods.com/{game_dir} not found.")
+        try:
+            game_name, game_id = await self._get_game(game_dir)
+        except (ClientResponseError, NotFound):
+            return await ctx.send(f":x: Game https://www.nexusmods.com/{game_dir} not found.")
 
         async with self.bot.db_connect() as con:
             async with con.execute(
@@ -54,31 +52,40 @@ class Games(commands.Cog):
             ) as cur:
                 if (await cur.fetchone())[0] >= 5:
                     return await ctx.send(":x: Maximum of 5 games exceeded.")
+
             if channel_id:
                 await con.execute("INSERT OR IGNORE INTO channel VALUES (?, ?)", (channel_id, ctx.guild.id))
-            for game_name, game_id in game.items():
-                await con.execute("INSERT OR REPLACE INTO search_task VALUES (?, ?, ?)", (ctx.guild.id, channel_id, game_id))
-                destination = ctx.channel.mention if channel_id else f"**{ctx.guild.name}**"
-                await ctx.send(f":white_check_mark: **{game_name}** added to games to search for in {destination}.")
+
+            await con.execute("INSERT OR REPLACE INTO search_task VALUES (?, ?, ?)", (ctx.guild.id, channel_id, game_id))
+            destination = ctx.channel.mention if channel_id else f"**{ctx.guild.name}**"
+            await ctx.send(f":white_check_mark: **{game_name}** added to games to search for in {destination}.")
             await con.commit()
+
+    async def _get_game(self, game_dir: str) -> tuple[int, str]:
+        """Get game ID and name for the specified `game_dir`."""
+        if not (game := self.games.get(game_dir)):
+            await self._update_games()
+            if not (game := self.games.get(game_dir)):
+                # fallback to web scraping
+                return await self.bot.nxm_request_handler.scrape_game_data(game_dir)
+        return game
 
     async def _update_games(self):
         """Update games with data from database."""
-        print("Updating games...")
         async with self.bot.db_connect() as con:
             try:
                 nexus_games = await self.bot.nxm_request_handler.get_all_games()
+            except ClientResponseError:
+                pass
+            else:
                 for game in nexus_games:
                     await con.execute(
                         "INSERT OR IGNORE INTO game VALUES (?, ?, ?)", (game["id"], game["domain_name"], game["name"])
                     )
                 await con.commit()
-                print("Games updated.")
-            except ClientResponseError:
-                pass
             db_games = await con.execute_fetchall("SELECT * FROM game")
             for game_id, game_dir, game_name in db_games:
-                self.games[game_dir] = {game_name: game_id}
+                self.games[game_dir] = (game_name, game_id)
 
     @commands.command(aliases=["nsfw"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
