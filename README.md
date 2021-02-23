@@ -19,17 +19,15 @@ Detailed descriptions of commands and their usage are shown by using the `.help`
 - [aiohttp]() >= 3.7.3
 - [aiosqlite](https://aiosqlite.omnilib.dev/en/stable/) >= 0.15.0
 - [discord.py](https://github.com/Rapptz/discord.py) == 1.6.0
-- [Nexus Mods account](https://users.nexusmods.com/register)
 
 The required Python libraries can be installed with pip using:
 ```
 pip install -r requirements.txt
 ```
 ### Configuration
-Create a `config.py` file in the same directory as `bot.py`. [Make a Discord bot account](https://discordpy.readthedocs.io/en/latest/discord.html), [enable the server members intent](https://discordpy.readthedocs.io/en/latest/intents.html#privileged-intents). Add the bot token and your Nexus Mods API key (which can be found under [your account settings](https://www.nexusmods.com/users/myaccount?tab=api%20access)) to `config.py` as follows:
+Create a `config.py` file in the same directory as `bot.py`. [Make a Discord bot account](https://discordpy.readthedocs.io/en/latest/discord.html) and [enable the server members intent](https://discordpy.readthedocs.io/en/latest/intents.html#privileged-intents). If you wish, you can use the [original icon image](https://raw.githubusercontent.com/JonathanFeenstra/discord-modlinkbot/master/img/icon.png) for your bot. Add the bot token to `config.py` as follows:
 ```python3
 token = "your Discord bot token"
-nexus_api_key = "your Nexus Mods API key"
 ```
 The following settings are optional:
 ```python3

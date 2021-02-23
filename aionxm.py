@@ -60,7 +60,14 @@ class RequestHandler:
 
     __slots__ = ("session", "api_headers", "html_user_agent")
 
-    def __init__(self, session: ClientSession, api_key: str, app_name: str, app_version: str, app_url: Optional[str] = None):
+    def __init__(
+        self,
+        session: ClientSession,
+        app_name: str,
+        app_version: str,
+        app_url: Optional[str] = None,
+        api_key: Optional[str] = None,
+    ):
         """Initialise request handler."""
         self.session = session
         # https://help.nexusmods.com/article/114-api-acceptable-use-policy
@@ -72,19 +79,33 @@ class RequestHandler:
                 f"{f'; +{app_url}' if app_url else ''}) {platform.python_implementation()}/{platform.python_version()}"
             ),
             "Accept": "application/json",
-            "apikey": api_key,
         }
+
+        if api_key is not None:
+            self.api_headers["apikey"] = api_key
+
         self.html_user_agent = f"Mozilla/5.0 (compatible; {app_name}/{app_version}{f'; +{app_url}' if app_url else ''})"
 
     async def get_game_data(self, game_dir: str) -> dict:
-        """Get JSON response with data about the game with the specified `game_dir`."""
+        """Get JSON response with data about the game with the specified `game_dir` from the API."""
         async with self.session.get(
             f"{API_BASE_URL}games/{game_dir}.json", headers=self.api_headers, raise_for_status=True
         ) as res:
             return await res.json()
 
-    async def get_all_games(self, include_unapproved: bool = False) -> dict:
-        """Get JSON response with data about all games."""
+    async def get_all_games(self) -> dict:
+        """Get JSON response with data from all games from B2 file host.
+
+        No API key required, but less data and more frequent errors.
+        """
+        async with self.session.get(
+            "https://data.nexusmods.com/file/nexus-data/games.json",
+            raise_for_status=True,
+        ) as res:
+            return await res.json()
+
+    async def get_all_games_api(self, include_unapproved: bool = False) -> dict:
+        """Get JSON response with data from all games from the API."""
         async with self.session.get(
             f"{API_BASE_URL}games.json",
             params={"include_unapproved": str(include_unapproved).lower()},

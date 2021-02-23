@@ -19,7 +19,6 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
-import re
 import traceback
 from datetime import datetime
 from functools import partial
@@ -36,7 +35,7 @@ import config
 
 from aionxm import RequestHandler
 
-__version__ = "0.1a2"
+__version__ = "0.1a3"
 
 
 GITHUB_URL = "https://github.com/JonathanFeenstra/discord-modlinkbot"
@@ -88,22 +87,6 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
             "(https://support.discord.com/hc/en-us/articles/360022320632)||. Queries cannot contain any of the following "
             'characters: ``\\";:=*%$&_<>?`[]``.'
         )
-        self.single_newline = re.compile(r"(?<!\n)\n(?![\n\=-])")
-
-    def add_command_formatting(self, command):
-        """A utility function to format the non-indented block of commands and groups."""
-        if command.description:
-            self.paginator.add_line(command.description, empty=True)
-
-        self.paginator.add_line(self.get_command_signature(command), empty=True)
-
-        if command_help := self.single_newline.sub(" ", command.help):
-            try:
-                self.paginator.add_line(command_help, empty=True)
-            except RuntimeError:
-                for line in command_help.splitlines():
-                    self.paginator.add_line(line)
-                self.paginator.add_line()
 
     async def send_bot_help(self, mapping):
         """Send help embed for when no help arguments are specified."""
@@ -114,8 +97,7 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
 
         if bot.get_cog("Games"):
             description.append(
-                f"Use `{prefix}help ag s` for an explanation about how to configure Nexus Mods search for a server, or "
-                f"`{prefix}help ag c` for a channel."
+                f"Use `{prefix}help ag` for an explanation about how to configure games to search Nexus Mods for."
             )
         else:
             description.append(
@@ -250,9 +232,7 @@ class ModLinkBot(commands.Bot):
         """Perform startup tasks, prepare database and configurations."""
         self.session = ClientSession(loop=self.loop)
         self.adapter = discord.AsyncWebhookAdapter(self.session)
-        self.nxm_request_handler = RequestHandler(
-            self.session, self.config.nexus_api_key, "discord-modlinkbot", __version__, GITHUB_URL
-        )
+        self.nxm_request_handler = RequestHandler(self.session, "discord-modlinkbot", __version__, GITHUB_URL)
 
         async with self.db_connect() as con:
             with open("modlinkbot_db.ddl") as ddl:
