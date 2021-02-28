@@ -1,6 +1,8 @@
 # discord-modlinkbot
-[![Discord Bots](https://top.gg/api/widget/status/665861255051083806.svg)](https://top.gg/bot/665861255051083806)
+[![Discord Bot List](https://top.gg/api/widget/status/665861255051083806.svg)](https://top.gg/bot/665861255051083806)
+[![Add to Discord server](https://img.shields.io/static/v1?style=flat&logo=discord&logoColor=FFF&label=&message=add%20to%20server&color=7289DA)](https://discordapp.com/oauth2/authorize?client_id=665861255051083806&permissions=67202177&scope=bot)
 [![License](https://img.shields.io/github/license/JonathanFeenstra/discord-modlinkbot)](https://github.com/JonathanFeenstra/discord-modlinkbot/blob/master/LICENSE)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 A [Discord](https://discord.com/) bot for linking [Nexus Mods](https://www.nexusmods.com/) search results.
 
@@ -12,20 +14,18 @@ Retrieve search results from [Nexus Mods](https://www.nexusmods.com/) for search
 
 This functionality is based on [u/modlinkbot on Reddit](https://www.reddit.com/r/modlinkbotsub/comments/dlp7d1/bot_operation_and_information/) and the [Nexus Mods Discord Bot](https://github.com/Nexus-Mods/discord-bot/) quicksearch command. In addition, games to search for can be configed per server or channel by using commands.
 
-Detailed descriptions of commands and their usage are shown by using the `.help` command.
+Detailed descriptions of commands and their usage are provided by using the `.help` command.
 ## Self-hosting
 ### Requirements
 - [Python](https://www.python.org/downloads/) >= 3.9
-- [aiohttp]() >= 3.7.3
-- [aiosqlite](https://aiosqlite.omnilib.dev/en/stable/) >= 0.15.0
-- [discord.py](https://github.com/Rapptz/discord.py) == 1.6.0
+- [pipenv](https://pipenv.pypa.io/en/stable/install/#installing-pipenv)
 
-The required Python libraries can be installed with pip using:
+The required Python libraries can be installed with `pipenv` by using the following command in this working directory:
 ```
-pip install -r requirements.txt
+pipenv install
 ```
 ### Configuration
-Create a `config.py` file in the same directory as `bot.py`. [Make a Discord bot account](https://discordpy.readthedocs.io/en/latest/discord.html) and [enable the server members intent](https://discordpy.readthedocs.io/en/latest/intents.html#privileged-intents). If you wish, you can use the [original icon image](https://raw.githubusercontent.com/JonathanFeenstra/discord-modlinkbot/master/img/icon.png) for your bot. Add the bot token to `config.py` as follows:
+Create a `config.py` file in this directory. [Make a Discord bot account](https://discordpy.readthedocs.io/en/latest/discord.html) and [enable the server members intent](https://discordpy.readthedocs.io/en/latest/intents.html#privileged-intents). If you wish, you can use the [included icon image](https://raw.githubusercontent.com/JonathanFeenstra/discord-modlinkbot/master/img/icon.png) for your bot. Add the bot token to `config.py` as follows:
 ```python3
 token = "your Discord bot token"
 ```

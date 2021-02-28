@@ -36,7 +36,7 @@ class Games(commands.Cog):
     def __init__(self, bot):
         """Initialise cog and update guild configuration with database content."""
         self.bot = bot
-        self.games = dict()
+        self.games = {}
         self.bot.loop.create_task(self._update_games())
 
     async def _add_game(self, ctx, game_dir: str, channel_id=0):

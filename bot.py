@@ -20,7 +20,6 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 import traceback
-from datetime import datetime
 from functools import partial
 from itertools import groupby
 from sqlite3 import PARSE_COLNAMES, PARSE_DECLTYPES
@@ -35,7 +34,7 @@ import config
 
 from aionxm import RequestHandler
 
-__version__ = "0.1a4"
+__version__ = "0.1a5"
 
 
 GITHUB_URL = "https://github.com/JonathanFeenstra/discord-modlinkbot"
@@ -182,7 +181,7 @@ class ModLinkBot(commands.Bot):
             )
         )
 
-    async def _get_add_info(self, guild, limit=50):
+    async def _get_bot_add_log_entry(self, guild, limit=50):
         """Get log entry of the addition of the bot to the specified guild when found."""
         if guild.me.guild_permissions.view_audit_log:
             async for log_entry in guild.audit_logs(action=discord.AuditLogAction.bot_add, limit=limit):
@@ -310,16 +309,16 @@ class ModLinkBot(commands.Bot):
         """Set default guild configuration when joining a guild."""
         if not self.validate_guild(guild):
             return await guild.leave()
-        add_info = await self._get_add_info(guild)
+        bot_add_log_entry = await self._get_bot_add_log_entry(guild)
         async with self.db_connect() as con:
             await con.execute(
-                "INSERT OR IGNORE INTO guild VALUES (?, '.', ?, 1)",
-                (guild.id, getattr(add_info, "joined_at", datetime.now())),
+                "INSERT OR IGNORE INTO guild VALUES (?, '.', 1)",
+                (guild.id,),
             )
             await con.commit()
         await self._update_presence()
         if webhook_url := getattr(self.config, "webhook_url", False):
-            await self.log_guild_change(webhook_url, guild, add_info or True)
+            await self.log_guild_change(webhook_url, guild, bot_add_log_entry or True)
 
     async def on_guild_remove(self, guild):
         """Remove guild configuration when leaving a guild."""

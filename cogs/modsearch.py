@@ -211,7 +211,7 @@ class ModSearch(commands.Cog):
 
     async def _embed_single_query_results(self, embed, query, games, nsfw):
         """Embed search results of single query with multiple games."""
-        responses = dict()
+        responses = {}
         for game_id, game_name in games:
             try:
                 if (response := await self.nexus_search(query, game_id, bool(nsfw))).get("results"):

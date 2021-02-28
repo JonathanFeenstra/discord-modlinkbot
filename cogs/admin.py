@@ -92,18 +92,11 @@ class Admin(commands.Cog):
     @commands.cooldown(rate=1, per=30, type=commands.BucketType.channel)
     async def guilds(self, ctx):
         """Send list of guilds that bot is a member of."""
-        guilds_info = [f"{'Name': <32}Members  Joined (d/m/y)"]
+        guilds_info = [f"{'Name': <32}Members"]
 
-        async with self.bot.db_connect() as con:
-            guilds = await con.exexute_fetchall("SELECT guild_id, joined_at FROM guild LIMIT 50")
-            for guild_id, joined_at in guilds:
-                if guild := self.bot.get_guild(guild_id):
-                    name = guild.name if len(guild.name) <= 30 else f"{guild.name[:27]}..."
-                    join_date = joined_at.strftime("%d/%m/%Y")
-                    guilds_info.append(f"{name: <32}{f'{guild.member_count:,}': <9}{join_date}")
-                else:
-                    await con.execute("DELETE FROM guild WHERE guild_id = ?", (guild_id,))
-            await con.commit()
+        for guild in self.bot.guilds:
+            name = guild.name if len(guild.name) <= 30 else f"{guild.name[:27]}..."
+            guilds_info.append(f"{name: <32}{f'{guild.member_count:,}': <9}")
 
         description = discord.utils.escape_markdown("\n".join(guilds_info))
         embed = discord.Embed(
