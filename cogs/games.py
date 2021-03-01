@@ -110,8 +110,11 @@ class Games(commands.Cog):
         )
         async with self.bot.db_connect() as con:
             if games := await con.execute_fetchall(
-                "SELECT name, channel_id FROM search_task s, game g ON s.game_id = g.game_id WHERE guild_id = ?",
-                (ctx.guild.id,),
+                """SELECT name, channel_id
+                   FROM search_task s, game g
+                   ON s.game_id = g.game_id
+                   WHERE guild_id = ? AND channel_id IN (0, ?)""",
+                (ctx.guild.id, ctx.channel.id),
             ):
                 channel_games, guild_games = [], []
                 for game_name, channel_id in games:
