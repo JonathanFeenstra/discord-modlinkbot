@@ -95,9 +95,7 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
         description = [self.description]
 
         if bot.get_cog("Games"):
-            description.append(
-                f"Use `{prefix}help ag` for an explanation about how to configure games to search Nexus Mods for."
-            )
+            description.append(f"Use `{prefix}help addgame` for info about configuring games to search Nexus Mods for.")
         else:
             description.append(
                 "**Important:** Load the Games extension to enable search configuration settings using "
@@ -117,7 +115,7 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
             name="Links",
             value=(
                 f"[Discord Bot List](https://top.gg/bot/665861255051083806) | [GitHub]({GITHUB_URL}) | [Add to your server]"
-                f"(https://discordapp.com/oauth2/authorize?client_id={bot.user.id}&permissions=67136705&scope=bot)"
+                f"(https://discordapp.com/oauth2/authorize?client_id={bot.user.id}&permissions=19649&scope=bot)"
             ),
             inline=False,
         )
@@ -309,7 +307,6 @@ class ModLinkBot(commands.Bot):
         """Set default guild configuration when joining a guild."""
         if not self.validate_guild(guild):
             return await guild.leave()
-        bot_add_log_entry = await self._get_bot_add_log_entry(guild)
         async with self.db_connect() as con:
             await con.execute(
                 "INSERT OR IGNORE INTO guild VALUES (?, '.', 1)",
@@ -318,7 +315,7 @@ class ModLinkBot(commands.Bot):
             await con.commit()
         await self._update_presence()
         if webhook_url := getattr(self.config, "webhook_url", False):
-            await self.log_guild_change(webhook_url, guild, bot_add_log_entry or True)
+            await self.log_guild_change(webhook_url, guild, await self._get_bot_add_log_entry(guild) or True)
 
     async def on_guild_remove(self, guild):
         """Remove guild configuration when leaving a guild."""

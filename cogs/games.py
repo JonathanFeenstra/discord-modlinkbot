@@ -24,7 +24,6 @@ from discord.ext import commands
 from aiohttp import ClientResponseError
 
 from aionxm import NotFound
-from .general import delete_msg
 
 
 INCLUDE_NSFW_MODS = {0: "Never", 1: "Always", 2: "Only in NSFW channels"}
@@ -101,7 +100,6 @@ class Games(commands.Cog):
             await ctx.send(":x: NSFW value must be 0 (never), 1 (always), or 2 (only in NSFW channels).")
 
     @commands.command(aliases=["games"])
-    @delete_msg
     async def showgames(self, ctx):
         """List configured Nexus Mods games to search mods for in server/channel."""
         embed = discord.Embed(colour=14323253)
@@ -110,7 +108,6 @@ class Games(commands.Cog):
             url="https://www.nexusmods.com/",
             icon_url="https://images.nexusmods.com/favicons/ReskinOrange/favicon-32x32.png",
         )
-        embed.set_footer(text=f"Prompted by @{ctx.author}", icon_url=ctx.author.avatar_url)
         async with self.bot.db_connect() as con:
             if games := await con.execute_fetchall(
                 "SELECT name, channel_id FROM search_task s, game g ON s.game_id = g.game_id WHERE guild_id = ?",

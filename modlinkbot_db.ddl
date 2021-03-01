@@ -33,5 +33,3 @@ IF NOT EXISTS admin (
 );
 
 INSERT OR IGNORE INTO game VALUES(0, "all", "All games");
-INSERT OR IGNORE INTO game VALUES(110, "skyrim", "Skyrim Classic");
-INSERT OR IGNORE INTO game VALUES(1704, "skyrimspecialedition", "Skyrim Special Edition");

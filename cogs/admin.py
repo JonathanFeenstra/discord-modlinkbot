@@ -24,8 +24,6 @@ from ast import literal_eval
 import discord
 from discord.ext import commands
 
-from .general import delete_msg
-
 
 class Admin(commands.Cog):
     """Cog for providing owner/admin-only commands."""
@@ -56,7 +54,6 @@ class Admin(commands.Cog):
             await ctx.send(f"Succesfully set `{setting} = {value}`.")
 
     @commands.command(aliases=["stop", "shutdown", "close", "quit", "exit"])
-    @delete_msg
     async def logout(self, ctx):
         """Log out the bot."""
         await ctx.send(":white_check_mark: Shutting down.")
@@ -108,7 +105,6 @@ class Admin(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command(aliases=["admin"])
-    @delete_msg
     async def makeadmin(self, ctx, user_id: int):
         """Make user a bot admin."""
         self.bot.owner_ids.add(user_id)
@@ -133,7 +129,6 @@ class Admin(commands.Cog):
             await ctx.send(f":white_check_mark: Removed `{user_id}` as admin.")
 
     @commands.command()
-    @delete_msg
     async def block(self, ctx, _id: int):
         """Block a guild or user from using the bot."""
         if guild := self.bot.get_guild(_id):
