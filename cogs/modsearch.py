@@ -77,7 +77,7 @@ def find_queries(text: str) -> list:
 
 
 def add_result_field(embed: discord.Embed, game_name: str, response: ClientResponse):
-    """Add search result field to `embed`."""
+    """Add search result field to embed."""
     if len(mod_name := unescape((mod := response["results"][0])["name"])) > 128:
         mod_name = f"{mod_name[:125]}..."
     search_result = f"[{mod_name}](https://nexusmods.com{mod['url']})"
@@ -91,6 +91,7 @@ def add_result_field(embed: discord.Embed, game_name: str, response: ClientRespo
 
 
 def add_response_error_field(embed: discord.Embed, error: ClientResponseError, query: str, game_name: str):
+    """Add field to embed for when a `ClientResponseError` occurs."""
     embed.add_field(
         name=game_name,
         value=f"[`Error {error.status}: {error.message}`]({error.request_info.real_url}) | "

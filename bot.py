@@ -263,14 +263,14 @@ class ModLinkBot(commands.Bot):
             return
         await self.process_commands(msg)
 
-    async def log_guild_change(self, webhook_url, guild, add_info=True):
+    async def log_guild_change(self, webhook_url, guild, added=True):
         """Send webhook log message when guild joins or leaves."""
         guild_string = f"**{discord.utils.escape_markdown(guild.name)}** ({guild.id})"
         embed = discord.Embed(
             description=(
-                ":inbox_tray: {0} has been added to {1}." if add_info else ":outbox_tray: {0} has been removed from {1}."
+                ":inbox_tray: {0} has been added to {1}." if added else ":outbox_tray: {0} has been removed from {1}."
             ).format(self.user.mention, guild_string),
-            colour=guild.me.colour.value or 14323253,
+            colour=(added and guild.me.colour.value) or 14323253,
         )
         embed.set_thumbnail(url=guild.banner_url)
         embed.timestamp = guild.created_at
@@ -283,8 +283,8 @@ class ModLinkBot(commands.Bot):
         else:
             log_author = self.user
 
-        if add_info:
-            if bot_inviter := getattr(add_info, "user", False):
+        if added:
+            if bot_inviter := getattr(added, "user", False):
                 embed.description = f":inbox_tray: **@{bot_inviter}** has added {self.user.mention} to {guild_string}."
                 log_author = bot_inviter
             else:

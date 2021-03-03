@@ -66,7 +66,7 @@ class Games(commands.Cog):
             await self._update_games()
             if not (game := self.games.get(game_dir)):
                 # fallback to web scraping
-                return await self.bot.nxm_request_handler.scrape_game_data(game_dir)
+                return await self.bot.nxm_request_handler.scrape_game_id_and_name(game_dir)
         return game
 
     async def _update_games(self):
