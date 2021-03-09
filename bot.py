@@ -20,21 +20,18 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import traceback
-from functools import partial
 from itertools import groupby
-from sqlite3 import PARSE_COLNAMES, PARSE_DECLTYPES
 from sys import stderr
 
 import discord
 from aiohttp import ClientSession
-from aiosqlite import connect
 from discord.ext import commands
 
 import config
-
 from aionxm import RequestHandler
+from storage import connect
 
-__version__ = "0.1a5"
+__version__ = "0.1a6"
 
 
 GITHUB_URL = "https://github.com/JonathanFeenstra/discord-modlinkbot"
@@ -44,8 +41,7 @@ async def get_prefix(bot, msg):
     """Check `msg` for valid command prefixes."""
     if msg.guild:
         async with bot.db_connect() as con:
-            async with con.execute("SELECT prefix FROM guild WHERE guild_id = ?", (msg.guild.id,)) as cur:
-                return commands.when_mentioned_or(*(await cur.fetchone()) or ".")(bot, msg)
+            return commands.when_mentioned_or(await con.fetch_guild_prefix(msg.guild.id) or ".")(bot, msg)
     return commands.when_mentioned_or(".")(bot, msg)
 
 
@@ -155,9 +151,6 @@ class ModLinkBot(commands.Bot):
         )
 
         self.config = config
-        self.db_connect = partial(
-            connect, getattr(self.config, "db_path", "modlinkbot.db"), detect_types=PARSE_DECLTYPES | PARSE_COLNAMES
-        )
         self.blocked = set()
         self.loop.create_task(self.startup())
 
@@ -170,6 +163,21 @@ class ModLinkBot(commands.Bot):
                 print(f"Failed to load extension {extension}: {error}", file=stderr)
                 traceback.print_exc()
 
+    async def _prepare_storage(self):
+        """Prepare storage systems (database and cache)."""
+        async with self.db_connect() as con:
+            await con.executefile("modlinkbot_db.ddl")
+            await con.commit()
+
+            self.blocked.update(await con.fetch_blocked_ids())
+            self.owner_ids.update(admin_ids := await con.fetch_admin_ids())
+            self.app_owner_id = (await self.application_info()).owner.id
+            self.owner_ids.add(self.app_owner_id)
+
+            if self.app_owner_id not in admin_ids:
+                await con.insert_admin_id(self.app_owner_id)
+                await con.commit()
+
     async def _update_presence(self):
         """Update the bot's presence with the number of guilds."""
         await self.change_presence(
@@ -179,7 +187,7 @@ class ModLinkBot(commands.Bot):
             )
         )
 
-    async def _get_bot_add_log_entry(self, guild, limit=50):
+    async def _get_bot_addition_log_entry(self, guild, limit=50):
         """Get log entry of the addition of the bot to the specified guild when found."""
         if guild.me.guild_permissions.view_audit_log:
             async for log_entry in guild.audit_logs(action=discord.AuditLogAction.bot_add, limit=limit):
@@ -192,25 +200,33 @@ class ModLinkBot(commands.Bot):
     async def _update_guild_configs(self):
         """Update configurations of guilds that joined or left while offline."""
         async with self.db_connect() as con:
-            await con.execute("PRAGMA foreign_keys = ON")
-            await con.execute(
-                f"DELETE FROM guild WHERE guild_id NOT IN ({', '.join(str(guild.id) for guild in self.guilds)})"
-            )
+            await con.enable_foreign_keys()
+            await con.filter_guilds(tuple(guild.id for guild in self.guilds))
             await con.commit()
 
-            db_guilds = [row[0] for row in await con.execute_fetchall("SELECT guild_id FROM guild")]
+            db_guilds = await con.fetch_guild_ids()
 
-            async with con.execute("SELECT * FROM channel") as cur:
-                async for channel_id, guild_id in cur:
-                    if not (guild := self.get_guild(guild_id)):
-                        await con.execute("DELETE FROM guild WHERE guild_id = ?", (guild_id,))
-                    elif channel_id and not guild.get_channel(channel_id):
-                        await con.execute("DELETE FROM channel WHERE guild_id = ?", (channel_id,))
+            for channel_id, guild_id in await con.fetch_channels():
+                if not (guild := self.get_guild(guild_id)):
+                    await con.delete_guild(guild_id)
+                elif not guild.get_channel(channel_id):
+                    await con.delete_channel(channel_id)
+
+            for guild in self.guilds:
+                if not self.validate_guild(guild):
+                    await guild.leave()
+                elif guild.id not in db_guilds:
+                    await con.insert_guild(guild.id)
+                    if webhook_url := getattr(self.config, "webhook_url", False):
+                        await self.log_guild_change(
+                            webhook_url, guild, await self._get_bot_addition_log_entry(guild) or True
+                        )
+
             await con.commit()
 
-        for guild in self.guilds:
-            if guild.id not in db_guilds:
-                await self.on_guild_join(guild)
+    def db_connect(self):
+        """Connect to the database."""
+        return connect(getattr(self.config, "db_path", "modlinkbot.db"))
 
     def validate_guild(self, guild):
         """Check if guild and its owner are not blocked and the guild limit not exceeded."""
@@ -226,32 +242,24 @@ class ModLinkBot(commands.Bot):
         return not msg.author.bot and msg.author.id not in self.blocked and isinstance(msg.guild, discord.Guild)
 
     async def startup(self):
-        """Perform startup tasks, prepare database and configurations."""
+        """Perform startup tasks: prepare sorage and configurations."""
         self.session = ClientSession(loop=self.loop)
         self.adapter = discord.AsyncWebhookAdapter(self.session)
         self.nxm_request_handler = RequestHandler(self.session, "discord-modlinkbot", __version__, GITHUB_URL)
 
-        async with self.db_connect() as con:
-            with open("modlinkbot_db.ddl") as ddl:
-                await con.executescript(ddl.read())
-            await con.commit()
-
-            self.blocked.update(*(await con.execute_fetchall("SELECT blocked_id FROM blocked")))
-
-            admin_ids = await con.execute_fetchall("SELECT admin_id FROM admin")
-            self.owner_ids.update(*admin_ids)
-
-            self.app_owner_id = (await self.application_info()).owner.id
-            self.owner_ids.add(self.app_owner_id)
-            if self.app_owner_id not in admin_ids:
-                await con.execute("INSERT OR IGNORE INTO admin VALUES (?)", (self.app_owner_id,))
-                await con.commit()
-
+        await self._prepare_storage()
         await self.wait_until_ready()
         await self._update_guild_configs()
 
         self._load_extensions()
         print(f"{self.user.name} has been summoned.")
+
+    async def block_id(self, _id: int):
+        """Block a guild or user by ID."""
+        self.blocked.add(_id)
+        async with self.db_connect() as con:
+            await con.insert_blocked_id(_id)
+            await con.commit()
 
     async def on_ready(self):
         """Update bot presence when ready."""
@@ -308,22 +316,19 @@ class ModLinkBot(commands.Bot):
         if not self.validate_guild(guild):
             return await guild.leave()
         async with self.db_connect() as con:
-            await con.execute(
-                "INSERT OR IGNORE INTO guild VALUES (?, '.', 1)",
-                (guild.id,),
-            )
+            await con.insert_guild(guild.id)
             await con.commit()
         await self._update_presence()
         if webhook_url := getattr(self.config, "webhook_url", False):
-            await self.log_guild_change(webhook_url, guild, await self._get_bot_add_log_entry(guild) or True)
+            await self.log_guild_change(webhook_url, guild, await self._get_bot_addition_log_entry(guild) or True)
 
     async def on_guild_remove(self, guild):
         """Remove guild configuration when leaving a guild."""
         if not self.validate_guild(guild):
             return
         async with self.db_connect() as con:
-            await con.execute("PRAGMA foreign_keys = ON")
-            await con.execute("DELETE FROM guild WHERE guild_id = ?", (guild.id,))
+            await con.enable_foreign_keys()
+            await con.delete_guild(guild.id)
             await con.commit()
         await self._update_presence()
         if webhook_url := getattr(self.config, "webhook_url", False):
@@ -334,8 +339,8 @@ class ModLinkBot(commands.Bot):
         if not isinstance(channel, discord.TextChannel):
             return
         async with self.db_connect() as con:
-            await con.execute("PRAGMA foreign_keys = ON")
-            await con.execute("DELETE FROM channel WHERE channel_id = ?", (channel.id,))
+            await con.enable_foreign_keys()
+            await con.delete_channel(channel.id)
             await con.commit()
 
     async def on_command_error(self, ctx, error):

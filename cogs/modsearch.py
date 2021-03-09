@@ -143,25 +143,16 @@ class ModSearch(commands.Cog):
     async def _get_nsfw_flag(self, ctx) -> int:
         """Determine whether NSFW mods should be included in the search (0=no; 1=yes, but hide NSFW thumbnails; 2=yes)."""
         async with self.bot.db_connect() as con:
-            async with con.execute("SELECT nsfw FROM guild WHERE guild_id = ?", (ctx.guild.id,)) as cur:
-                return {0: 0, 1: 1 + ctx.channel.is_nsfw(), 2: 2 * ctx.channel.is_nsfw()}[(await cur.fetchone())[0]]
+            return {0: 0, 1: 1 + ctx.channel.is_nsfw(), 2: 2 * ctx.channel.is_nsfw()}[
+                await con.fetch_guild_nsfw_flag(ctx.guild.id)
+            ]
 
     async def _get_games(self, ctx) -> list:
         """Get games to search for in the given guild message context."""
         async with self.bot.db_connect() as con:
-            return await con.execute_fetchall(
-                """SELECT g.game_id, g.name
-                   FROM search_task s, game g
-                   ON s.game_id = g.game_id
-                   WHERE channel_id = ?""",
-                (ctx.channel.id,),
-            ) or await con.execute_fetchall(
-                """SELECT g.game_id, g.name
-                   FROM search_task s, game g
-                   ON s.game_id = g.game_id
-                   WHERE guild_id = ? AND channel_id = 0""",
-                (ctx.guild.id,),
-            )
+            return await con.fetch_channel_search_tasks_game_id_and_name(
+                ctx.channel.id
+            ) or await con.fetch_guild_search_tasks_game_id_and_name(ctx.guild.id)
 
     async def _embed_single_result(self, embed, query, game_name, response, nsfw_flag):
         """"Fill Discord embed with single mod search result from `query`."""
@@ -277,13 +268,13 @@ class ModSearch(commands.Cog):
             return await ctx.send(embed=embed)
 
         result_messages = []
-        for idx in range(0, n_queries, per_embed):
+        for i in range(0, n_queries, per_embed):
             embed.description = ":mag_right: Searching mods..."
             embed.clear_fields()
             result_messages.append(msg := await ctx.channel.send(embed=embed))
             embed.description = None
             start = time.perf_counter()
-            await self._embed_results(embed, queries[idx : idx + per_embed], games, await self._get_nsfw_flag(ctx))
+            await self._embed_results(embed, queries[i : i + per_embed], games, await self._get_nsfw_flag(ctx))
             embed.set_footer(
                 text=f"Searched by @{ctx.author} | Total time: {round(time.perf_counter() - start, 2)} s",
                 icon_url=ctx.author.avatar_url,

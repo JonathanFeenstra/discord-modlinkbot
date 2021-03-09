@@ -65,7 +65,7 @@ class General(commands.Cog):
         """Set guild prefix for bot commands."""
         if len(prefix) <= 3:
             async with self.bot.db_connect() as con:
-                await con.execute("UPDATE guild SET prefix = ? WHERE guild_id = ?", (prefix, ctx.guild.id))
+                await con.set_guild_prefix(ctx.guild.id, prefix)
                 await con.commit()
             await ctx.send(f":white_check_mark: Prefix set to `{prefix}`.")
         else:

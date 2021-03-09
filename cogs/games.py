@@ -46,16 +46,12 @@ class Games(commands.Cog):
             return await ctx.send(f":x: Game https://www.nexusmods.com/{game_dir} not found.")
 
         async with self.bot.db_connect() as con:
-            async with con.execute(
-                "SELECT COUNT (*) FROM search_task WHERE guild_id = ? AND channel_id = ?", (ctx.guild.id, channel_id)
-            ) as cur:
-                if (await cur.fetchone())[0] >= 5:
-                    return await ctx.send(":x: Maximum of 5 games exceeded.")
-
+            if await con.fetch_search_task_count(ctx.guild.id, channel_id) >= 5:
+                return await ctx.send(":x: Maximum of 5 games exceeded.")
             if channel_id:
-                await con.execute("INSERT OR IGNORE INTO channel VALUES (?, ?)", (channel_id, ctx.guild.id))
+                await con.insert_channel(channel_id, ctx.guild.id)
 
-            await con.execute("INSERT OR REPLACE INTO search_task VALUES (?, ?, ?)", (ctx.guild.id, channel_id, game_id))
+            await con.insert_search_task(ctx.guild.id, channel_id, game_id)
             destination = ctx.channel.mention if channel_id else f"**{ctx.guild.name}**"
             await ctx.send(f":white_check_mark: **{game_name}** added to games to search for in {destination}.")
             await con.commit()
@@ -78,26 +74,23 @@ class Games(commands.Cog):
                 pass
             else:
                 for game in nexus_games:
-                    await con.execute(
-                        "INSERT OR IGNORE INTO game VALUES (?, ?, ?)", (game["id"], game["domain_name"], game["name"])
-                    )
+                    await con.insert_game(game["id"], game["domain_name"], game["name"])
                 await con.commit()
-            db_games = await con.execute_fetchall("SELECT * FROM game")
-            for game_id, game_dir, game_name in db_games:
+            for game_id, game_dir, game_name in await con.fetch_games():
                 self.games[game_dir] = (game_name, game_id)
 
     @commands.command(aliases=["nsfw"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
-    async def setnsfw(self, ctx, value: int):
-        """Set NSFW value for guild for when to include adult results (0=never; 1=always; 2=only in NSFW channels)."""
-        if 0 <= value <= 2:
+    async def setnsfw(self, ctx, flag: int):
+        """Set NSFW flag for guild for when to include adult results (0=never; 1=always; 2=only in NSFW channels)."""
+        if 0 <= flag <= 2:
             async with self.bot.db_connect() as con:
-                await con.execute("UPDATE guild SET nsfw = ? WHERE guild_id = ?", (value, ctx.guild.id))
+                await con.set_guild_nsfw_flag(ctx.guild.id, flag)
                 await con.commit()
-            await ctx.send(f":white_check_mark: NSFW value set to {value}.")
+            await ctx.send(f":white_check_mark: NSFW flag set to {flag}.")
         else:
-            await ctx.send(":x: NSFW value must be 0 (never), 1 (always), or 2 (only in NSFW channels).")
+            await ctx.send(":x: NSFW flag must be 0 (never), 1 (always), or 2 (only in NSFW channels).")
 
     @commands.command(aliases=["games"])
     async def showgames(self, ctx):
@@ -109,13 +102,7 @@ class Games(commands.Cog):
             icon_url="https://images.nexusmods.com/favicons/ReskinOrange/favicon-32x32.png",
         )
         async with self.bot.db_connect() as con:
-            if games := await con.execute_fetchall(
-                """SELECT name, channel_id
-                   FROM search_task s, game g
-                   ON s.game_id = g.game_id
-                   WHERE guild_id = ? AND channel_id IN (0, ?)""",
-                (ctx.guild.id, ctx.channel.id),
-            ):
+            if games := await con.fetch_search_tasks_game_name_and_channel_id(ctx.guild.id, ctx.channel.id):
                 channel_games, guild_games = [], []
                 for game_name, channel_id in games:
                     if channel_id == ctx.channel.id:
@@ -128,9 +115,9 @@ class Games(commands.Cog):
                     embed.add_field(
                         name=f"Default games in **{ctx.guild.name}**", value=", ".join(guild_games), inline=False
                     )
-                async with con.execute("SELECT nsfw FROM guild WHERE guild_id = ?", (ctx.guild.id,)) as cur:
-                    nsfw = (await cur.fetchone())[0]
-                    embed.add_field(name="Include NSFW mods?", value=INCLUDE_NSFW_MODS[nsfw])
+                embed.add_field(
+                    name="Include NSFW mods?", value=INCLUDE_NSFW_MODS[await con.fetch_guild_nsfw_flag(ctx.guild.id)]
+                )
             else:
                 embed.description = ":x: No games are configured in this channel/server."
         await ctx.send(embed=embed)
@@ -180,16 +167,12 @@ class Games(commands.Cog):
     async def delgame(self, ctx):
         """Delete a game to search mods for in the server or channel."""
         if ctx.invoked_subcommand is None:
-            if ctx.subcommand_passed:
+            if game_dir := ctx.subcommand_passed:
                 async with self.bot.db_connect() as con:
-                    async with con.execute(
-                        "SELECT 1 FROM search_task s, game g ON s.game_id = g.game_id WHERE channel_id = ? AND dir = ?",
-                        (ctx.channel.id, game_dir := ctx.subcommand_passed),
-                    ) as cur:
-                        if await cur.fetchone():
-                            await self.delgame_channel(ctx, game_dir)
-                        else:
-                            await self.delgame_server(ctx, game_dir)
+                    if await con.fetch_channel_has_search_task(ctx.channel.id, game_dir):
+                        await self.delgame_channel(ctx, game_dir)
+                    else:
+                        await self.delgame_server(ctx, game_dir)
             else:
                 await ctx.send(":x: No game specified.")
 
@@ -197,48 +180,30 @@ class Games(commands.Cog):
     async def delgame_server(self, ctx, game_dir: str):
         """Delete a game to search mods for in the server."""
         async with self.bot.db_connect() as con:
-            await con.execute("PRAGMA foreign_keys = ON")
-            async with con.execute(
-                """SELECT s.game_id, g.name
-                   FROM search_task s, game g
-                   ON s.game_id = g.game_id
-                   WHERE guild_id = ? AND channel_id = 0 AND dir = ?""",
-                (ctx.guild.id, game_dir),
-            ) as cur:
-                if game := await cur.fetchone():
-                    await con.execute(
-                        "DELETE FROM search_task WHERE guild_id = ? AND channel_id = 0 AND game_id = ?",
-                        (ctx.guild.id, game[0]),
-                    )
-                    await con.commit()
-                    await ctx.send(f":white_check_mark: Server filter for **{game[1]}** deleted.")
-                else:
-                    await ctx.send(f":x: Game `{game_dir}` not found in server filters.")
+            await con.enable_foreign_keys()
+            if game := await con.fetch_guild_search_task_game_id_and_name(ctx.guild.id, game_dir):
+                game_id, game_name = game
+                await con.delete_search_task(ctx.guild.id, 0, game_id)
+                await con.commit()
+                await ctx.send(f":white_check_mark: Server filter for **{game_name}** deleted.")
+            else:
+                await ctx.send(f":x: Game `{game_dir}` not found in server filters.")
 
     @delgame.command(name="channel", aliases=["c"])
     async def delgame_channel(self, ctx, game_dir: str):
         """Delete a game to search mods for in the channel."""
         async with self.bot.db_connect() as con:
-            async with con.execute(
-                """SELECT s.game_id, g.name
-                   FROM search_task s, game g
-                   ON s.game_id = g.game_id
-                   WHERE channel_id = ? AND dir = ?""",
-                (ctx.channel.id, game_dir),
-            ) as cur:
-                if game := await cur.fetchone():
-                    async with con.execute("SELECT 1 FROM search_task WHERE game_id != ?", (game[0],)) as cur:
-                        if await cur.fetchone():
-                            await con.execute(
-                                "DELETE FROM search_task WHERE channel_id = ? AND game_id = ?", (ctx.channel.id, game[0])
-                            )
-                        else:
-                            await con.execute("PRAGMA foreign_keys = ON")
-                            await con.execute("DELETE FROM channel WHERE channel_id = ?", (ctx.channel.id,))
-                        await con.commit()
-                    await ctx.send(f":white_check_mark: Channel filter for **{game[1]}** deleted.")
+            if game := await con.fetch_channel_search_task_game_id_and_name(ctx.channel.id, game_dir):
+                game_id, game_name = game
+                if await con.fetch_channel_has_any_other_search_tasks(ctx.channel.id, game_id):
+                    await con.delete_channel_search_task(ctx.channel.id, game_id)
                 else:
-                    await ctx.send(f":x: Game `{game_dir}` not found in channel filters.")
+                    await con.enable_foreign_keys()
+                    await con.delete_channel(ctx.channel.id)
+                await con.commit()
+                await ctx.send(f":white_check_mark: Channel filter for **{game_name}** deleted.")
+            else:
+                await ctx.send(f":x: Game `{game_dir}` not found in channel filters.")
 
     @commands.group(aliases=["reset"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
@@ -247,19 +212,20 @@ class Games(commands.Cog):
         """Clear games to search mods for in the server or channel."""
         if ctx.invoked_subcommand is None:
             if ctx.subcommand_passed:
-                await ctx.send(f":x: Invalid subcommand {repr(ctx.subcommand_passed)} (must be `channel` or `server`).")
+                return await ctx.send(
+                    f":x: Invalid subcommand {repr(ctx.subcommand_passed)} (must be `channel` or `server`)."
+                )
             async with self.bot.db_connect() as con:
-                async with con.execute("SELECT 1 FROM search_task WHERE channel_id = ?", (ctx.channel.id,)) as cur:
-                    if await cur.fetchone():
-                        await self.clear_channel(ctx)
-                    else:
-                        await self.clear_server(ctx)
+                if await con.fetch_channel_has_any_search_tasks(ctx.channel.id):
+                    await self.clear_channel(ctx)
+                else:
+                    await self.clear_server(ctx)
 
     @clear.command(name="server", aliases=["guild", "s", "g"])
     async def clear_server(self, ctx):
         """Clear games to search mods for in the server."""
         async with self.bot.db_connect() as con:
-            await con.execute("DELETE FROM search_task WHERE guild_id = ? AND channel_id = 0", (ctx.guild.id,))
+            await con.clear_guild_search_tasks(ctx.guild.id)
             await con.commit()
         await ctx.send(":white_check_mark: Server filters cleared.")
 
@@ -267,8 +233,8 @@ class Games(commands.Cog):
     async def clear_channel(self, ctx):
         """"Clear games to search mods for in the channel."""
         async with self.bot.db_connect() as con:
-            await con.execute("PRAGMA foreign_keys = ON")
-            await con.execute("DELETE FROM channel WHERE channel_id = ?", (ctx.channel.id,))
+            await con.enable_foreign_keys()
+            await con.delete_channel(ctx.channel.id)
             await con.commit()
         await ctx.send(":white_check_mark: Channel filters cleared.")
 

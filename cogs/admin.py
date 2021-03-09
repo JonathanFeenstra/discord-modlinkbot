@@ -32,13 +32,6 @@ class Admin(commands.Cog):
         """Initialise cog."""
         self.bot = bot
 
-    async def _block(self, _id: int):
-        """Block a guild or user."""
-        self.bot.blocked.add(_id)
-        async with self.bot.db_connect() as con:
-            await con.execute("INSERT OR IGNORE INTO blocked VALUES (?)", (_id,))
-            await con.commit()
-
     async def cog_check(self, ctx):
         """Checks if context author is a bot admin for every command in this cog."""
         return await self.bot.is_owner(ctx.author)
@@ -109,7 +102,7 @@ class Admin(commands.Cog):
         """Make user a bot admin."""
         self.bot.owner_ids.add(user_id)
         async with self.bot.db_connect() as con:
-            await con.execute("INSERT OR IGNORE INTO admin VALUES (?)", (user_id,))
+            await con.insert_admin_id(user_id)
             await con.commit()
         await ctx.send(f":white_check_mark: Added {user_id} as admin.")
 
@@ -133,28 +126,28 @@ class Admin(commands.Cog):
         """Block a guild or user from using the bot."""
         if guild := self.bot.get_guild(_id):
             await guild.leave()
-        await self._block(_id)
+        await self.bot.block(_id)
         await ctx.send(f":white_check_mark: Blocked ID `{_id}`.")
 
     @commands.command()
-    async def unblock(self, ctx, _id: int):
+    async def unblock(self, ctx, blocked_id: int):
         """Unblock a guild or user from using the bot."""
         try:
-            self.bot.blocked.remove(_id)
+            self.bot.blocked.remove(blocked_id)
         except KeyError:
-            await ctx.send(f":x: ID `{_id}` was not blocked.")
+            await ctx.send(f":x: ID `{blocked_id}` was not blocked.")
         else:
-            await ctx.send(f":white_check_mark: ID `{_id}` is no longer blocked.")
+            await ctx.send(f":white_check_mark: ID `{blocked_id}` is no longer blocked.")
         finally:
             async with self.bot.db_connect() as con:
-                await con.execute("DELETE FROM blocked WHERE blocked_id = (?)", (_id,))
+                await con.delete_blocked_id(blocked_id)
                 await con.commit()
 
     @commands.Cog.listener()
     async def on_member_ban(self, guild, user):
         """Block and leave guild if the bot's app owner is banned."""
         if user.id == getattr(self.bot, "app_owner_id", None):
-            await self._block(guild.id)
+            await self.bot.block(guild.id)
             await guild.leave()
 
 
