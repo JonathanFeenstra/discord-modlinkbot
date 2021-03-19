@@ -119,8 +119,7 @@ class ResultsEmbed(discord.Embed):
         """Fill embed with single query mod search results."""
         query = self.search_task["queries"][0]
         self.title = f"Search results for: **{repr(self.WHITESPACE_RE.sub(' ', query))}**"
-        for result in query_results:
-            self.add_result_field(result)
+        self._add_query_results(query, query_results)
 
     def add_result_fields(self, results):
         """Fill embed with multiple query mod search results."""
@@ -130,19 +129,18 @@ class ResultsEmbed(discord.Embed):
                 self.add_field(
                     name="Search results for:", value=f"**{repr(self.WHITESPACE_RE.sub(' ', query))}**", inline=False
                 )
-                if not query_results:
-                    self.add_no_results_field(query)
-                else:
-                    for result in query_results:
-                        self.add_result_field(result)
+                self._add_query_results(query, query_results)
         else:
             self._author["name"] += f" | {self.search_task['games'][0][1]}"
             for query, query_results in queries_and_results:
-                if not query_results:
-                    self.add_no_results_field(query)
-                else:
-                    for result in query_results:
-                        self.add_result_field(result, f"Results for: {repr(query)}")
+                self._add_query_results(query, query_results, f"Results for: {repr(query)}")
+
+    def _add_query_results(self, query: str, query_results: dict, field_name=None):
+        if not query_results:
+            self.add_no_results_field(query)
+        else:
+            for result in query_results:
+                self.add_result_field(result, field_name)
 
     def add_result_field(self, result: dict, name=None):
         """Add search result field to embed."""
