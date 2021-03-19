@@ -31,7 +31,7 @@ import config
 from aionxm import RequestHandler
 from storage import connect
 
-__version__ = "0.1a6"
+__version__ = "0.2a1"
 
 
 GITHUB_URL = "https://github.com/JonathanFeenstra/discord-modlinkbot"
@@ -73,7 +73,6 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
     """Help command for modlinkbot."""
 
     def __init__(self):
-        """Initialise help command."""
         super().__init__()
         self.description = (
             "Configure a server or channel to retrieve search results from [Nexus Mods](https://www.nexusmods.com/) for "
@@ -141,7 +140,6 @@ class ModLinkBot(commands.Bot):
     """Discord Bot for linking Nexus Mods search results"""
 
     def __init__(self):
-        """Initialise bot."""
         super().__init__(
             command_prefix=get_prefix,
             help_command=ModLinkBotHelpCommand(),
@@ -154,17 +152,21 @@ class ModLinkBot(commands.Bot):
         self.blocked = set()
         self.loop.create_task(self.startup())
 
-    def _load_extensions(self):
-        """Load all bot extensions."""
-        for extension in ("admin", "games", "general", "modsearch"):
-            try:
-                self.load_extension(f"cogs.{extension}")
-            except Exception as error:
-                print(f"Failed to load extension {extension}: {error}", file=stderr)
-                traceback.print_exc()
+    async def startup(self):
+        """Perform startup tasks: prepare sorage and configurations."""
+        self.session = ClientSession(loop=self.loop)
+        self.adapter = discord.AsyncWebhookAdapter(self.session)
+        app_data = {"name": "discord-modlinkbot", "version": __version__, "url": GITHUB_URL}
+        self.request_handler = RequestHandler(self.session, app_data)
+
+        await self._prepare_storage()
+        await self.wait_until_ready()
+        await self._update_guilds()
+
+        self._load_extensions("admin", "games", "general", "modsearch")
+        print(f"{self.user.name} has been summoned.")
 
     async def _prepare_storage(self):
-        """Prepare storage systems (database and cache)."""
         async with self.db_connect() as con:
             await con.executefile("modlinkbot_db.ddl")
             await con.commit()
@@ -178,27 +180,7 @@ class ModLinkBot(commands.Bot):
                 await con.insert_admin_id(self.app_owner_id)
                 await con.commit()
 
-    async def _update_presence(self):
-        """Update the bot's presence with the number of guilds."""
-        await self.change_presence(
-            activity=discord.Activity(
-                name=f"messages in {'1 server' if (guild_count := len(self.guilds)) == 1 else f'{guild_count} servers'}",
-                type=discord.ActivityType.watching,
-            )
-        )
-
-    async def _get_bot_addition_log_entry(self, guild, limit=50):
-        """Get log entry of the addition of the bot to the specified guild when found."""
-        if guild.me.guild_permissions.view_audit_log:
-            async for log_entry in guild.audit_logs(action=discord.AuditLogAction.bot_add, limit=limit):
-                if log_entry.target == guild.me:
-                    if log_entry.user.id in self.blocked:
-                        return await guild.leave()
-                    return log_entry
-        return None
-
-    async def _update_guild_configs(self):
-        """Update configurations of guilds that joined or left while offline."""
+    async def _update_guilds(self):
         async with self.db_connect() as con:
             await con.enable_foreign_keys()
             await con.filter_guilds(tuple(guild.id for guild in self.guilds))
@@ -219,10 +201,34 @@ class ModLinkBot(commands.Bot):
                     await con.insert_guild(guild.id)
                     if webhook_url := getattr(self.config, "webhook_url", False):
                         await self.log_guild_change(
-                            webhook_url, guild, await self._get_bot_addition_log_entry(guild) or True
+                            webhook_url, guild, await self._get_bot_addition_log_entry_if_found(guild) or True
                         )
 
             await con.commit()
+
+    def _load_extensions(self, *extensions):
+        for extension in extensions:
+            try:
+                self.load_extension(f"cogs.{extension}")
+            except Exception as error:
+                print(f"Failed to load extension {extension}: {error}", file=stderr)
+                traceback.print_exc()
+
+    async def _update_presence(self):
+        await self.change_presence(
+            activity=discord.Activity(
+                name=f"messages in {'1 server' if (guild_count := len(self.guilds)) == 1 else f'{guild_count} servers'}",
+                type=discord.ActivityType.watching,
+            )
+        )
+
+    async def _get_bot_addition_log_entry_if_found(self, guild, max_logs_to_check=50):
+        if guild.me.guild_permissions.view_audit_log:
+            async for log_entry in guild.audit_logs(action=discord.AuditLogAction.bot_add, limit=max_logs_to_check):
+                if log_entry.target == guild.me:
+                    if log_entry.user.id in self.blocked:
+                        return await guild.leave()
+                    return log_entry
 
     def db_connect(self):
         """Connect to the database."""
@@ -231,8 +237,7 @@ class ModLinkBot(commands.Bot):
     def validate_guild(self, guild):
         """Check if guild and its owner are not blocked and the guild limit not exceeded."""
         return (
-            isinstance(guild, discord.Guild)
-            and guild.id not in self.blocked
+            guild.id not in self.blocked
             and guild.owner_id not in self.blocked
             and (not (max_guilds := getattr(self.config, "max_guilds", False)) or len(self.guilds) <= max_guilds)
         )
@@ -240,19 +245,6 @@ class ModLinkBot(commands.Bot):
     def validate_msg(self, msg):
         """Check if message is valid to be processed."""
         return not msg.author.bot and msg.author.id not in self.blocked and isinstance(msg.guild, discord.Guild)
-
-    async def startup(self):
-        """Perform startup tasks: prepare sorage and configurations."""
-        self.session = ClientSession(loop=self.loop)
-        self.adapter = discord.AsyncWebhookAdapter(self.session)
-        self.nxm_request_handler = RequestHandler(self.session, "discord-modlinkbot", __version__, GITHUB_URL)
-
-        await self._prepare_storage()
-        await self.wait_until_ready()
-        await self._update_guild_configs()
-
-        self._load_extensions()
-        print(f"{self.user.name} has been summoned.")
 
     async def block_id(self, _id: int):
         """Block a guild or user by ID."""
@@ -320,7 +312,7 @@ class ModLinkBot(commands.Bot):
             await con.commit()
         await self._update_presence()
         if webhook_url := getattr(self.config, "webhook_url", False):
-            await self.log_guild_change(webhook_url, guild, await self._get_bot_addition_log_entry(guild) or True)
+            await self.log_guild_change(webhook_url, guild, await self._get_bot_addition_log_entry_if_found(guild) or True)
 
     async def on_guild_remove(self, guild):
         """Remove guild configuration when leaving a guild."""
@@ -366,7 +358,7 @@ class ModLinkBot(commands.Bot):
         await super().close()
 
 
-if __name__ == "__main__":
+def main():
     print("Starting...")
     modlinkbot = ModLinkBot()
 
@@ -408,3 +400,7 @@ if __name__ == "__main__":
         await ctx.send(f":white_check_mark: Succesfully reloaded '{cog}'.")
 
     modlinkbot.run(config.token)
+
+
+if __name__ == "__main__":
+    main()

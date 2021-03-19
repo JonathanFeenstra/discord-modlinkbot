@@ -35,7 +35,7 @@ GAME_NAME_RE = re.compile(r":: (?P<game_name>.*?)\"")
 GAME_ID_RE = re.compile(r"https://staticdelivery\.nexusmods\.com/Images/games/4_3/tile_(?P<game_id>[0-9]{1,4})")
 # Match Nexus Mods profile icon in HTML
 PROFILE_ICON_RE = re.compile(
-    r"<img class=\"user-avatar\" src=\"(?P<profile_icon_url>https://(?:forums\.nexusmods\.com/uploads/profile/"
+    r"<img class=\"user-avatar\" src=\"(?P<profile_icon_url>https://(?:forums\.nexusmods\.com/uploads/(?:profile/)?"
     r"(?:photo-(?:thumb-)?|av-)[0-9]*\.|secure\.gravatar\.com/avatar/)\w+)(?:\"|\?)"
 )
 
@@ -65,20 +65,19 @@ class RequestHandler:
     def __init__(
         self,
         session: ClientSession,
-        app_name: str,
-        app_version: str,
-        app_url: Optional[str] = None,
+        app_data: dict,
         api_key: Optional[str] = None,
     ):
-        """Initialise request handler."""
         self.session = session
         # https://help.nexusmods.com/article/114-api-acceptable-use-policy
+        app_url = app_data.get("url")
         self.api_headers = {
-            "Application-Version": app_version,
-            "Application-Name": app_name,
+            "Application-Version": (app_version := app_data["version"]),
+            "Application-Name": (app_name := app_data["name"]),
             "User-Agent": (
                 f"{app_name}/{app_version} ({platform.platform()}; {platform.architecture()[0]}"
-                f"{f'; +{app_url}' if app_url else ''}) {platform.python_implementation()}/{platform.python_version()}"
+                f"{f'; +{app_url}' if app_url else ''}) "
+                f"{platform.python_implementation()}/{platform.python_version()}"
             ),
             "Accept": "application/json",
         }

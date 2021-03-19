@@ -19,6 +19,8 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+import re
+
 import discord
 from discord.ext import commands
 from aiohttp import ClientResponseError
@@ -26,22 +28,28 @@ from aiohttp import ClientResponseError
 from aionxm import NotFound
 
 
+GAME_DOMAIN_RE = re.compile(r"(?:https?://(?:www\.)?nexusmods\.com/)?(?P<game_dir>[a-zA-Z0-9]+)/?$")
 INCLUDE_NSFW_MODS = {0: "Never", 1: "Always", 2: "Only in NSFW channels"}
+
+
+def parse_game_dir(game_dir: str):
+    """Parse game directory and return canonical name or raise `ValueError` if invalid."""
+    if match := GAME_DOMAIN_RE.match(game_dir):
+        return match.group("game_dir")
+    raise commands.UserInputError(f"Invalid game directory {repr(game_dir)}.")
 
 
 class Games(commands.Cog):
     """Cog to manage game configurations per server/channel."""
 
     def __init__(self, bot):
-        """Initialise cog and update guild configuration with database content."""
         self.bot = bot
         self.games = {}
-        self.bot.loop.create_task(self._update_games())
+        self.bot.loop.create_task(self._update_game_data())
 
-    async def _add_game(self, ctx, game_dir: str, channel_id=0):
-        """Add game to search for in the specified channel (or guild if `channel_id=0`)."""
+    async def _add_search_task(self, ctx, game_dir: str, channel_id=0):
         try:
-            game_name, game_id = await self._get_game(game_dir)
+            game_name, game_id = await self._get_game_id_and_name(parse_game_dir(game_dir))
         except (ClientResponseError, NotFound):
             return await ctx.send(f":x: Game https://www.nexusmods.com/{game_dir} not found.")
 
@@ -56,20 +64,18 @@ class Games(commands.Cog):
             await ctx.send(f":white_check_mark: **{game_name}** added to games to search for in {destination}.")
             await con.commit()
 
-    async def _get_game(self, game_dir: str) -> tuple[int, str]:
-        """Get game ID and name for the specified `game_dir`."""
+    async def _get_game_id_and_name(self, game_dir: str) -> tuple[int, str]:
         if not (game := self.games.get(game_dir)):
-            await self._update_games()
+            await self._update_game_data()
             if not (game := self.games.get(game_dir)):
                 # fallback to web scraping
-                return await self.bot.nxm_request_handler.scrape_game_id_and_name(game_dir)
+                return await self.bot.request_handler.scrape_game_id_and_name(game_dir)
         return game
 
-    async def _update_games(self):
-        """Update games with data from database."""
+    async def _update_game_data(self):
         async with self.bot.db_connect() as con:
             try:
-                nexus_games = await self.bot.nxm_request_handler.get_all_games()
+                nexus_games = await self.bot.request_handler.get_all_games()
             except ClientResponseError:
                 pass
             else:
@@ -149,7 +155,7 @@ class Games(commands.Cog):
         # Add Kingdom Come Deliverance to the server's default games:
         .addgame server kingdomcomedeliverance
         """
-        await self._add_game(ctx, game_dir)
+        await self._add_search_task(ctx, game_dir)
 
     @addgame.command(name="channel", aliases=["c"])
     async def addgame_channel(self, ctx, game_dir: str):
@@ -159,7 +165,7 @@ class Games(commands.Cog):
          # Add Skyrim Special Edition to channel games (overrides the server's default games):
         .addgame channel skyrimspecialedition
         """
-        await self._add_game(ctx, game_dir, ctx.channel.id)
+        await self._add_search_task(ctx, game_dir, ctx.channel.id)
 
     @commands.group(aliases=["dg"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
@@ -168,6 +174,7 @@ class Games(commands.Cog):
         """Delete a game to search mods for in the server or channel."""
         if ctx.invoked_subcommand is None:
             if game_dir := ctx.subcommand_passed:
+                game_dir = parse_game_dir(game_dir)
                 async with self.bot.db_connect() as con:
                     if await con.fetch_channel_has_search_task(ctx.channel.id, game_dir):
                         await self.delgame_channel(ctx, game_dir)
@@ -179,6 +186,7 @@ class Games(commands.Cog):
     @delgame.command(name="server", aliases=["guild", "s", "g"])
     async def delgame_server(self, ctx, game_dir: str):
         """Delete a game to search mods for in the server."""
+        game_dir = parse_game_dir(game_dir)
         async with self.bot.db_connect() as con:
             await con.enable_foreign_keys()
             if game := await con.fetch_guild_search_task_game_id_and_name(ctx.guild.id, game_dir):
@@ -192,6 +200,7 @@ class Games(commands.Cog):
     @delgame.command(name="channel", aliases=["c"])
     async def delgame_channel(self, ctx, game_dir: str):
         """Delete a game to search mods for in the channel."""
+        game_dir = parse_game_dir(game_dir)
         async with self.bot.db_connect() as con:
             if game := await con.fetch_channel_search_task_game_id_and_name(ctx.channel.id, game_dir):
                 game_id, game_name = game
@@ -240,5 +249,4 @@ class Games(commands.Cog):
 
 
 def setup(bot):
-    """Add this cog to bot."""
     bot.add_cog(Games(bot))

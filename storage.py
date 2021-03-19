@@ -31,7 +31,6 @@ class AsyncDatabaseConnection(Connection):
     """Asynchronous SQLite database connection."""
 
     async def __aenter__(self) -> "AsyncDatabaseConnection":
-        """Asynchronously enter connection context."""
         con = await self
         await con.execute("PRAGMA journal_mode = WAL")
         return con

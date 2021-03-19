@@ -29,7 +29,6 @@ class General(commands.Cog):
     """Cog to enable general utility commands."""
 
     def __init__(self, bot):
-        """Initialise cog."""
         self.bot = bot
 
     @commands.command()
@@ -101,5 +100,4 @@ class General(commands.Cog):
 
 
 def setup(bot):
-    """Add this cog to bot."""
     bot.add_cog(General(bot))

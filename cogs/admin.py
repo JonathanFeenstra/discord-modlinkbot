@@ -29,7 +29,6 @@ class Admin(commands.Cog):
     """Cog for providing owner/admin-only commands."""
 
     def __init__(self, bot):
-        """Initialise cog."""
         self.bot = bot
 
     async def cog_check(self, ctx):
@@ -66,8 +65,11 @@ class Admin(commands.Cog):
     @commands.command(aliases=["avatar"])
     async def changeavatar(self, ctx, *, url: str = None):
         """Change the bot's avatar picture with an image attachment or URL."""
-        if url is None and len(ctx.message.attachments) == 1:
-            url = ctx.message.attachments[0].url
+        if url is None:
+            if len(ctx.message.attachments) == 1:
+                url = ctx.message.attachments[0].url
+            else:
+                return await ctx.send(":x: No URL specified and no or multiple images attached.")
         else:
             url = url.strip("<>")
         try:
@@ -152,5 +154,4 @@ class Admin(commands.Cog):
 
 
 def setup(bot):
-    """Add this cog to bot."""
     bot.add_cog(Admin(bot))
