@@ -22,11 +22,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import re
 
 import discord
-from discord.ext import commands
 from aiohttp import ClientResponseError
+from discord.ext import commands
 
 from aionxm import NotFound
-
 
 GAME_DOMAIN_RE = re.compile(r"(?:https?://(?:www\.)?nexusmods\.com/)?(?P<game_dir>[a-zA-Z0-9]+)/?$")
 INCLUDE_NSFW_MODS = {0: "Never", 1: "Always", 2: "Only in NSFW channels"}

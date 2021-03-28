@@ -19,6 +19,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+import importlib
 import traceback
 from itertools import groupby
 from sys import stderr
@@ -72,7 +73,7 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
         embed = discord.Embed(
             title=f"{bot.user.name} | Help",
             description="\n\n".join(description),
-            colour=ctx.guild.me.colour.value or 14323253,
+            colour=ctx.me.colour.value or 14323253,
         )
         embed.add_field(
             name="Links",
@@ -112,7 +113,6 @@ class ModLinkBot(commands.Bot):
             command_prefix=self.get_prefix,
             help_command=ModLinkBotHelpCommand(),
             status=discord.Status.idle,
-            owner_ids=getattr(self.config, "owner_ids", set()),
             intents=discord.Intents(guilds=True, members=True, bans=True, guild_messages=True, guild_reactions=True),
         )
         # Placeholder until startup is complete
@@ -123,7 +123,16 @@ class ModLinkBot(commands.Bot):
     @property
     def config(self):
         """Bot configuration module."""
-        return __import__("config")
+        return importlib.reload(config)
+
+    @property
+    def owner_ids(self):
+        """Bot owner IDs."""
+        return getattr(self.config, "owner_ids", set())
+
+    @owner_ids.setter
+    def owner_ids(self, value):
+        """Owner IDs setter, to ignore new value set in constructor of the superclass."""
 
     async def startup(self):
         """Perform startup tasks: prepare sorage and configurations."""
@@ -148,13 +157,8 @@ class ModLinkBot(commands.Bot):
         await con.commit()
 
         self.blocked.update(await con.fetch_blocked_ids())
-        self.owner_ids.update(admin_ids := await con.fetch_admin_ids())
         self.app_owner_id = (await self.application_info()).owner.id
         self.owner_ids.add(self.app_owner_id)
-
-        if self.app_owner_id not in admin_ids:
-            await con.insert_admin_id(self.app_owner_id)
-            await con.commit()
 
     async def _update_guilds(self, con):
         await con.enable_foreign_keys()

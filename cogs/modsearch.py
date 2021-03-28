@@ -35,7 +35,7 @@ import discord
 from aiohttp import ClientResponseError
 from discord.ext import commands
 
-from aionxm import parse_query, NotFound
+from aionxm import NotFound, parse_query
 
 # Match text {between braces} excluding specific characters (";:=*%$&_<>?`[])
 SEARCH_QUERIES_RE = re.compile(r"{([^\";:=\*%\$&_<>\?`\[\]]*?)}", re.DOTALL)

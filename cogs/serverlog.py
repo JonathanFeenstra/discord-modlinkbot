@@ -23,7 +23,6 @@ import traceback
 from sys import stderr
 
 import discord
-
 from discord.ext import commands
 
 

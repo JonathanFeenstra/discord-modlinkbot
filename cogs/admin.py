@@ -122,34 +122,10 @@ class Admin(commands.Cog):
         embed = discord.Embed(
             title=":busts_in_silhouette: Servers",
             description=f"```{description if len(description) < 2048 else description[2045] + '...'}```",
-            colour=ctx.guild.me.colour.value or 14323253,
+            colour=ctx.me.colour.value or 14323253,
         )
         embed.set_footer(text=f"Prompted by @{ctx.author}", icon_url=ctx.author.avatar_url)
         await ctx.send(embed=embed)
-
-    @commands.command(aliases=["admin"])
-    async def makeadmin(self, ctx, user_id: int):
-        """Make user a bot admin."""
-        self.bot.owner_ids.add(user_id)
-        async with self.bot.db_connect() as con:
-            await con.insert_admin_id(user_id)
-            await con.commit()
-        await ctx.send(f":white_check_mark: Added {user_id} as admin.")
-
-    @commands.command(aliases=["rmadmin"])
-    async def deladmin(self, ctx, user_id: int):
-        """Remove user as bot admin if not app owner."""
-        if user_id == getattr(self.bot, "app_owner_id", None):
-            return await ctx.send(":x: Cannot remove app owner.")
-        try:
-            self.bot.owner_ids.remove(user_id)
-        except KeyError:
-            await ctx.send(f":x: User `{user_id}` was not an admin.")
-        else:
-            async with self.bot.db_connect() as con:
-                await con.delete_admin_id(user_id)
-                await con.commit()
-            await ctx.send(f":white_check_mark: Removed `{user_id}` as admin.")
 
     @commands.command()
     async def block(self, ctx, _id: int):

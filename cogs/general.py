@@ -34,7 +34,7 @@ class General(commands.Cog):
     @commands.command()
     async def invite(self, ctx):
         """Send bot invite link."""
-        modlinkbot = ctx.guild.me
+        modlinkbot = ctx.me
         embed = discord.Embed(
             title=f":link: Add {modlinkbot.name} to your server",
             description=f"Use [this link](https://discordapp.com/oauth2/authorize?client_id={modlinkbot.id}"
@@ -48,7 +48,7 @@ class General(commands.Cog):
     @commands.cooldown(rate=1, per=3, type=commands.BucketType.channel)
     async def ping(self, ctx):
         """Send latency in ms."""
-        embed = discord.Embed(title=":satellite: Ping", colour=ctx.guild.me.colour.value or 14323253)
+        embed = discord.Embed(title=":satellite: Ping", colour=ctx.me.colour.value or 14323253)
         start = time.perf_counter()
         await ctx.trigger_typing()
         end = time.perf_counter()
@@ -80,7 +80,7 @@ class General(commands.Cog):
         elif len(description) > 2048:
             description = f"{description[:2045]}..."
         embed = discord.Embed(
-            title=":stop_sign: Blocked IDs", description=description, colour=ctx.guild.me.colour.value or 14323253
+            title=":stop_sign: Blocked IDs", description=description, colour=ctx.me.colour.value or 14323253
         )
         await ctx.send(embed=embed)
 
@@ -94,7 +94,7 @@ class General(commands.Cog):
         elif len(description) > 2048:
             description = f"{description[:2045]}..."
         embed = discord.Embed(
-            title=":sunglasses: Bot Admin IDs", description=description, colour=ctx.guild.me.colour.value or 14323253
+            title=":sunglasses: Bot Admin IDs", description=description, colour=ctx.me.colour.value or 14323253
         )
         await ctx.send(embed=embed)
 

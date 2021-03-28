@@ -22,12 +22,10 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import asyncio
 import platform
 import re
-
+from typing import Optional
 from urllib.parse import quote
 
-from typing import Optional
 from aiohttp import ClientSession
-
 
 # Match Nexus Mods game name in HTML
 GAME_NAME_RE = re.compile(r":: (?P<game_name>.*?)\"")

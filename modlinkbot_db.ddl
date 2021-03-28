@@ -27,9 +27,5 @@ CREATE TABLE
 IF NOT EXISTS blocked (
     blocked_id INTEGER NOT NULL PRIMARY KEY
 );
-CREATE TABLE
-IF NOT EXISTS admin (
-    admin_id INTEGER NOT NULL PRIMARY KEY
-);
 
 INSERT OR IGNORE INTO game VALUES(0, "all", "All games");

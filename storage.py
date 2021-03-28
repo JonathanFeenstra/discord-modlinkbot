@@ -234,22 +234,6 @@ class GameAndSearchTaskConnection(AsyncDatabaseConnection):
         await self.execute("DELETE FROM search_task WHERE guild_id = ? AND channel_id = 0", (guild_id,))
 
 
-class AdminConnection(AsyncDatabaseConnection):
-    """Database connection for managing admin IDs."""
-
-    async def insert_admin_id(self, admin_id: int):
-        """Insert admin ID into the database."""
-        await self.execute("INSERT OR IGNORE INTO admin VALUES (?)", (admin_id,))
-
-    async def fetch_admin_ids(self) -> Iterable[int]:
-        """Fetch all admin IDs."""
-        return (row[0] for row in await self.execute_fetchall("SELECT admin_id FROM admin"))
-
-    async def delete_admin_id(self, admin_id: int):
-        """Delete an admin ID from the database."""
-        await self.execute("DELETE FROM admin WHERE admin_id = ?", (admin_id,))
-
-
 class BlockedConnection(AsyncDatabaseConnection):
     """Database connection for managing blocked IDs."""
 
@@ -270,7 +254,6 @@ class ModLinkBotConnection(
     GuildConnection,
     ChannelConnection,
     GameAndSearchTaskConnection,
-    AdminConnection,
     BlockedConnection,
 ):
     """modlinkbot's database connection."""
