@@ -2,7 +2,7 @@
 ModSearch
 =========
 
-Cog for searching Nexus Mods.
+Extension for searching Nexus Mods.
 
 Functionality based on:
 -  u/modlinkbot for Reddit:
@@ -63,7 +63,7 @@ def find_queries(text: str) -> list:
             query.strip()
             for query_text in SEARCH_QUERIES_RE.findall(MARKDOWN_RE.sub("?", text))
             for query in query_text.split(",")
-            if 3 <= len(parse_query(query)) <= 120
+            if 3 <= len(parse_query(query)) <= 100
         )
     )
 
@@ -244,7 +244,8 @@ class ModSearch(commands.Cog):
         """Send Nexus Mods results for the specified queries and games."""
         await ctx.trigger_typing()
         if len(queries) > (
-            max_queries := getattr(self.bot.config, "max_result_embeds", 3) * (queries_per_msg := 25 // (len(games) + 1))
+            max_queries := getattr(self.bot.config, "max_messages_per_search", 3)
+            * (queries_per_msg := 25 // (len(games) + 1))
         ):
             return await ctx.send(f":x: Too many queries in message (max={max_queries}).")
         nsfw_flag = await self._get_nsfw_flag(ctx.guild.id)

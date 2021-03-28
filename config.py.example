@@ -1,0 +1,27 @@
+# Bot token, copied from the application page in the Discord Developer Portal
+token = "your Discord bot token"
+
+# All settings below are optional
+
+# User IDs that may use bot owner commands (cogs/admin.py). The app owner is always a bot owner regardless of this setting
+# For how to get Discord user IDs, see: https://support.discord.com/hc/en-us/articles/206346498
+owner_ids = {
+    340577388331139072,  # Jonathan (developer)
+    255144776695808001,  # Yoosk (host)
+}
+
+# SQLite database file location
+database_path = "modlinkbot.db"  
+
+# Server limit, after which the bot will automatically leave any new servers
+# Bot needs to be verified above 100 servers: https://support.discord.com/hc/en-us/articles/360040720412
+max_servers = 1024
+
+# How many result messages the bot can send per search message
+# Due to embed field limits, results may need to be spread across multiple messages
+# The higher this setting, the higher the allowed number of search queries per message
+max_messages_per_search = 3
+
+# Webhook URL for logging when servers are added or removed
+# For an explanation about webhooks, see: https://support.discord.com/hc/en-us/articles/228383668
+server_log_webhook_url = "https://discord.com/api/webhooks/<id>/<token>"

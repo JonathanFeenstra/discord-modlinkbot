@@ -2,7 +2,7 @@
 Admin
 =====
 
-Cog for providing bot owner/admin-only commands.
+Extension for providing bot owner/admin-only commands.
 
 Copyright (C) 2019-2021 Jonathan Feenstra
 
@@ -19,8 +19,6 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-from ast import literal_eval
-
 import discord
 from discord.ext import commands
 
@@ -31,19 +29,49 @@ class Admin(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
-    async def cog_check(self, ctx):
-        """Checks if context author is a bot admin for every command in this cog."""
-        return await self.bot.is_owner(ctx.author)
+    def cog_check(self, ctx):
+        """Checks if context author is a bot owner for all commands in this cog."""
+        return ctx.author.id in self.bot.owner_ids
 
-    @commands.command()
-    async def config(self, ctx, setting: str, *, value):
-        """Set configuration setting to value."""
+    @commands.command(aliases=["loadextension"])
+    async def load(self, ctx, *, extension: str):
+        """Load extension.
+
+        Available extensions:
+        - admin
+        - games
+        - general
+        - modsearch
+        - serverlog
+        """
         try:
-            setattr(self.bot.config, setting := setting.lower(), literal_eval(value))
-        except Exception as error:
+            self.bot.load_extension(f"cogs.{extension}")
+        except commands.ExtensionError as error:
             await ctx.send(f":x: `{error.__class__.__name__}: {error}`")
         else:
-            await ctx.send(f"Succesfully set `{setting} = {value}`.")
+            await ctx.send(f":white_check_mark: Successfully loaded '{extension}'.")
+
+    @commands.command(aliases=["unloadextension"])
+    async def unload(self, ctx, *, extension: str):
+        """Unload extension."""
+        if extension == "admin":
+            return await ctx.send(":x: Admin extension cannot be unloaded.")
+        try:
+            self.bot.unload_extension(f"cogs.{extension}")
+        except commands.ExtensionError as error:
+            await ctx.send(f":x: `{error.__class__.__name__}: {error}`")
+        else:
+            await ctx.send(f":white_check_mark: Successfully unloaded '{extension}'.")
+
+    @commands.command(aliases=["reloadextension"])
+    async def reload(self, ctx, *, extension: str):
+        """Reload extension."""
+        try:
+            self.bot.reload_extension(f"cogs.{extension}")
+        except commands.ExtensionError as error:
+            await ctx.send(f":x: `{error.__class__.__name__}: {error}`")
+        else:
+            await ctx.send(f":white_check_mark: Succesfully reloaded '{extension}'.")
 
     @commands.command(aliases=["stop", "shutdown", "close", "quit", "exit"])
     async def logout(self, ctx):
@@ -115,12 +143,12 @@ class Admin(commands.Cog):
             return await ctx.send(":x: Cannot remove app owner.")
         try:
             self.bot.owner_ids.remove(user_id)
-            async with self.bot.db_connect() as con:
-                await con.execute("DELETE FROM admin WHERE admin_id = ?", (user_id,))
-                await con.commit()
         except KeyError:
             await ctx.send(f":x: User `{user_id}` was not an admin.")
         else:
+            async with self.bot.db_connect() as con:
+                await con.delete_admin_id(user_id)
+                await con.commit()
             await ctx.send(f":white_check_mark: Removed `{user_id}` as admin.")
 
     @commands.command()
@@ -139,11 +167,10 @@ class Admin(commands.Cog):
         except KeyError:
             await ctx.send(f":x: ID `{blocked_id}` was not blocked.")
         else:
-            await ctx.send(f":white_check_mark: ID `{blocked_id}` is no longer blocked.")
-        finally:
             async with self.bot.db_connect() as con:
                 await con.delete_blocked_id(blocked_id)
                 await con.commit()
+            await ctx.send(f":white_check_mark: ID `{blocked_id}` is no longer blocked.")
 
     @commands.Cog.listener()
     async def on_member_ban(self, guild, user):

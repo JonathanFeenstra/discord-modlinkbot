@@ -2,7 +2,7 @@
 General
 =======
 
-Cog with general utilities.
+Extension with general utilities.
 
 Copyright (C) 2019-2021 Jonathan Feenstra
 

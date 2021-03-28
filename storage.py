@@ -20,6 +20,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import sqlite3
+from asyncio import Lock
 from typing import Any, Iterable, Optional
 
 from aiosqlite import Connection
@@ -29,6 +30,10 @@ from aiosqlite.cursor import Cursor
 
 class AsyncDatabaseConnection(Connection):
     """Asynchronous SQLite database connection."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._lock = Lock()
 
     async def __aenter__(self) -> "AsyncDatabaseConnection":
         con = await self
@@ -42,8 +47,9 @@ class AsyncDatabaseConnection(Connection):
     @contextmanager
     async def executefile(self, file_path: str) -> Cursor:
         """Execute an SQL script from a file."""
-        with open(file_path) as script:
-            return await self.executescript(script.read())
+        async with self._lock:
+            with open(file_path) as script:
+                return await self.executescript(script.read())
 
     @contextmanager
     async def execute_fetchone(self, sql: str, parameters: Iterable[Any] = None) -> Optional[sqlite3.Row]:
@@ -54,8 +60,8 @@ class AsyncDatabaseConnection(Connection):
         return await cursor.fetchone()
 
 
-class GuildAndChannelConnection(AsyncDatabaseConnection):
-    """Database connection for managing guild and channel data."""
+class GuildConnection(AsyncDatabaseConnection):
+    """Database connection for managing guild data."""
 
     async def insert_guild(self, guild_id: int):
         """Insert guild with the specified ID into the database."""
@@ -96,6 +102,10 @@ class GuildAndChannelConnection(AsyncDatabaseConnection):
         else:
             for i in range(0, keep_amount, 999):
                 await self.filter_guilds(keep_guild_ids[i : i + 999])
+
+
+class ChannelConnection(AsyncDatabaseConnection):
+    """Database connection for managing channel data."""
 
     async def insert_channel(self, channel_id: int, guild_id: int):
         """Insert channel with the specified IDs into the database."""
@@ -224,8 +234,8 @@ class GameAndSearchTaskConnection(AsyncDatabaseConnection):
         await self.execute("DELETE FROM search_task WHERE guild_id = ? AND channel_id = 0", (guild_id,))
 
 
-class AdminAndBlockedConnection(AsyncDatabaseConnection):
-    """Database connection for managing admin and blocked IDs."""
+class AdminConnection(AsyncDatabaseConnection):
+    """Database connection for managing admin IDs."""
 
     async def insert_admin_id(self, admin_id: int):
         """Insert admin ID into the database."""
@@ -238,6 +248,10 @@ class AdminAndBlockedConnection(AsyncDatabaseConnection):
     async def delete_admin_id(self, admin_id: int):
         """Delete an admin ID from the database."""
         await self.execute("DELETE FROM admin WHERE admin_id = ?", (admin_id,))
+
+
+class BlockedConnection(AsyncDatabaseConnection):
+    """Database connection for managing blocked IDs."""
 
     async def insert_blocked_id(self, blocked_id: int):
         """Insert blocked ID into the database."""
@@ -252,7 +266,13 @@ class AdminAndBlockedConnection(AsyncDatabaseConnection):
         await self.execute("DELETE FROM blocked WHERE blocked_id = ?", (blocked_id,))
 
 
-class ModLinkBotConnection(GuildAndChannelConnection, GameAndSearchTaskConnection, AdminAndBlockedConnection):
+class ModLinkBotConnection(
+    GuildConnection,
+    ChannelConnection,
+    GameAndSearchTaskConnection,
+    AdminConnection,
+    BlockedConnection,
+):
     """modlinkbot's database connection."""
 
 

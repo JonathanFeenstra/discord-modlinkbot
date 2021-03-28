@@ -2,7 +2,7 @@
 Games
 =====
 
-Cog for management of server/channel-specific game configurations.
+Extension for management of server/channel-specific game configurations.
 
 Copyright (C) 2019-2021 Jonathan Feenstra
 
