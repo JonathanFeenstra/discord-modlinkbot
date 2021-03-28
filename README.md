@@ -12,7 +12,7 @@ Retrieve search results from [Nexus Mods](https://www.nexusmods.com/) for search
 ![example1](img/example1.png)
 ![example2](img/example2.png)
 
-This functionality is based on [u/modlinkbot on Reddit](https://www.reddit.com/r/modlinkbotsub/comments/dlp7d1/bot_operation_and_information/) and the [Nexus Mods Discord Bot](https://github.com/Nexus-Mods/discord-bot/) quicksearch command. In addition, games to search for can be configed per server or channel by using commands.
+This functionality is based on [u/modlinkbot on Reddit](https://www.reddit.com/r/modlinkbotsub/comments/dlp7d1/bot_operation_and_information/) and the [Nexus Mods Discord Bot](https://github.com/Nexus-Mods/discord-bot/) quicksearch command. In addition, games to search for can be configured per server or channel by using commands.
 
 Detailed descriptions of commands and their usage are provided by using the `.help` command.
 ## Self-hosting
