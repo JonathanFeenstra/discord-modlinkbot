@@ -20,6 +20,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import importlib
+import logging
 import traceback
 from itertools import groupby
 from sys import stderr
@@ -32,7 +33,7 @@ import config
 from aionxm import RequestHandler
 from storage import connect
 
-__version__ = "0.2a3"
+__version__ = "0.2a4"
 
 
 GITHUB_URL = "https://github.com/JonathanFeenstra/discord-modlinkbot"
@@ -56,24 +57,11 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
         ctx = self.context
         bot = ctx.bot
         prefix = (await bot.get_prefix(ctx.message))[-1]
-        description = [self.description]
 
-        if bot.get_cog("Games"):
-            description.append(f"Use `{prefix}help addgame` for info about configuring games to search Nexus Mods for.")
-        else:
-            description.append(
-                "**Important:** Load the Games extension to enable search configuration settings using "
-                f"`{prefix}load games` (can only be done by bot owners)."
-            )
-        if not bot.get_cog("ModSearch"):
-            description.append(
-                f"**Important:** Load the ModSearch extension to enable Nexus Mods search using `{prefix}load modsearch` "
-                "(can only be done by bot owners)."
-            )
         embed = discord.Embed(
             title=f"{bot.user.name} | Help",
-            description="\n\n".join(description),
-            colour=ctx.me.colour.value or 14323253,
+            description=self._format_description(prefix),
+            colour=ctx.me.colour.value or bot.DEFAULT_COLOUR,
         )
         embed.add_field(
             name="Links",
@@ -86,13 +74,39 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
         embed.set_footer(text=f"Prompted by @{ctx.author}", icon_url=ctx.author.avatar_url)
 
         await ctx.send(embed=embed)
+        await self._send_commands_info(prefix)
+
+    def _format_description(self, prefix: str) -> str:
+        description = [self.description]
+
+        if self.context.bot.get_cog("Games"):
+            description.append(
+                f"Use `{prefix}help addgame` for info about configuring games to search Nexus Mods for. "
+                f"Use `{prefix}help commands for the complete list of available commands."
+            )
+        else:
+            description.append(
+                "**Important:** Load the Games extension to enable search configuration settings using "
+                f"`{prefix}load games` (can only be done by bot owners)."
+            )
+        if not self.context.bot.get_cog("ModSearch"):
+            description.append(
+                f"**Important:** Load the ModSearch extension to enable Nexus Mods search using `{prefix}load modsearch` "
+                "(can only be done by bot owners)."
+            )
+
+        return "\n\n".join(description)
+
+    async def _send_commands_info(self, prefix: str):
         self.paginator.add_line(f"Commands (prefix = {repr(prefix)})", empty=True)
 
         def get_category(command):
             """Get command category (cog)."""
-            return f"{command.cog.qualified_name}:" if command.cog is not None else "No Category:"
+            return f"{command.cog.qualified_name}:" if command.cog is not None else "Help:"
 
-        max_size = self.get_max_size(filtered := await self.filter_commands(bot.commands, sort=True, key=get_category))
+        max_size = self.get_max_size(
+            filtered := await self.filter_commands(self.context.bot.commands, sort=True, key=get_category)
+        )
 
         for category, cmds in groupby(filtered, key=get_category):
             self.add_indented_commands(sorted(cmds, key=lambda c: c.name), heading=category, max_size=max_size)
@@ -108,15 +122,19 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
 class ModLinkBot(commands.Bot):
     """Discord Bot for linking Nexus Mods search results"""
 
+    DEFAULT_COLOUR = 0xDA8E35
+
     def __init__(self):
+        # Placeholder until startup is complete
+        self.app_owner_id = 0
+
         super().__init__(
             command_prefix=self.get_prefix,
             help_command=ModLinkBotHelpCommand(),
             status=discord.Status.idle,
             intents=discord.Intents(guilds=True, members=True, bans=True, guild_messages=True, guild_reactions=True),
         )
-        # Placeholder until startup is complete
-        self.app_owner_id = 0
+
         self.blocked = set()
         self.loop.create_task(self.startup())
 
@@ -128,7 +146,7 @@ class ModLinkBot(commands.Bot):
     @property
     def owner_ids(self):
         """Bot owner IDs."""
-        return getattr(self.config, "owner_ids", set())
+        return getattr(self.config, "owner_ids", set()) | {self.app_owner_id}
 
     @owner_ids.setter
     def owner_ids(self, value):
@@ -301,8 +319,29 @@ class ModLinkBot(commands.Bot):
         await super().close()
 
 
+def install_uvloop_if_found():
+    """Set event loop policy from https://github.com/MagicStack/uvloop if found."""
+    try:
+        uvloop = importlib.import_module("uvloop")
+    except ModuleNotFoundError:
+        pass
+    else:
+        uvloop.install()
+
+
+def setup_logging():
+    """Setup discord.py's logger (https://discordpy.readthedocs.io/en/latest/logging.html)."""
+    logger = logging.getLogger("discord")
+    logger.setLevel(logging.INFO)
+    handler = logging.FileHandler(filename=getattr(config, "log_path", "modlinkbot.log"), encoding="utf-8", mode="w")
+    handler.setFormatter(logging.Formatter("%(asctime)s:%(levelname)s:%(name)s: %(message)s"))
+    logger.addHandler(handler)
+
+
 def main():
     print("Starting...")
+    install_uvloop_if_found()
+    setup_logging()
     modlinkbot = ModLinkBot()
     modlinkbot.run(config.token)
 

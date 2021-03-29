@@ -40,7 +40,7 @@ class General(commands.Cog):
             description=f"Use [this link](https://discordapp.com/oauth2/authorize?client_id={modlinkbot.id}"
             f"&permissions=19649&scope=bot) to add {modlinkbot.mention} to your server. The permissions 'Create Invite' "
             "and 'View Audit Log' are optional. Use `.help addgame` for info about setting up search tasks.",
-            colour=modlinkbot.colour.value or 14323253,
+            colour=modlinkbot.colour.value or self.bot.DEFAULT_COLOUR,
         )
         await ctx.send(embed=embed)
 
@@ -48,7 +48,7 @@ class General(commands.Cog):
     @commands.cooldown(rate=1, per=3, type=commands.BucketType.channel)
     async def ping(self, ctx):
         """Send latency in ms."""
-        embed = discord.Embed(title=":satellite: Ping", colour=ctx.me.colour.value or 14323253)
+        embed = discord.Embed(title=":satellite: Ping", colour=ctx.me.colour.value or self.bot.DEFAULT_COLOUR)
         start = time.perf_counter()
         await ctx.trigger_typing()
         end = time.perf_counter()
@@ -80,21 +80,19 @@ class General(commands.Cog):
         elif len(description) > 2048:
             description = f"{description[:2045]}..."
         embed = discord.Embed(
-            title=":stop_sign: Blocked IDs", description=description, colour=ctx.me.colour.value or 14323253
+            title=":stop_sign: Blocked IDs", description=description, colour=ctx.me.colour.value or self.bot.DEFAULT_COLOUR
         )
         await ctx.send(embed=embed)
 
-    @commands.command(aliases=["admins"])
+    @commands.command(aliases=["showadmins", "owners", "admins"])
     @commands.cooldown(rate=1, per=10, type=commands.BucketType.channel)
-    async def showadmins(self, ctx):
-        """Send embed with admins."""
+    async def showowners(self, ctx):
+        """Send embed with owners."""
         description = ", ".join(f"<@{owner_id}>" for owner_id in self.bot.owner_ids)
-        if not description:
-            description = "No admins."
-        elif len(description) > 2048:
+        if len(description) > 2048:
             description = f"{description[:2045]}..."
         embed = discord.Embed(
-            title=":sunglasses: Bot Admins", description=description, colour=ctx.me.colour.value or 14323253
+            title=":sunglasses: Bot owners", description=description, colour=ctx.me.colour.value or self.bot.DEFAULT_COLOUR
         )
         await ctx.send(embed=embed)
 

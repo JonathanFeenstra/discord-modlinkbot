@@ -100,7 +100,7 @@ class Games(commands.Cog):
     @commands.command(aliases=["games"])
     async def showgames(self, ctx):
         """List configured Nexus Mods games to search mods for in server/channel."""
-        embed = discord.Embed(colour=14323253)
+        embed = discord.Embed(colour=self.bot.DEFAULT_COLOUR)
         embed.set_author(
             name="Nexus Mods Search Configuration",
             url="https://www.nexusmods.com/",

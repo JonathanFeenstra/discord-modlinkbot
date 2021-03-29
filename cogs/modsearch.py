@@ -80,7 +80,6 @@ class ResultsEmbed(discord.Embed):
     WHITESPACE_RE = re.compile(r"\s+")
 
     def __init__(self, **kwargs):
-        kwargs["colour"] = kwargs.get("colour", 14323253)
         super().__init__(**kwargs)
         self.search_task = kwargs.get("search_task", {})
         self.set_author(
@@ -268,7 +267,9 @@ class ModSearch(commands.Cog):
         all_queries = search_task["queries"]
         for i in range(0, len(all_queries), queries_per_msg):
             search_task["queries"] = all_queries[i : i + queries_per_msg]
-            embed = ResultsEmbed(description=":mag_right: Searching mods...", search_task=search_task)
+            embed = ResultsEmbed(
+                description=":mag_right: Searching mods...", colour=self.bot.DEFAULT_COLOUR, search_task=search_task
+            )
             result_messages.append(msg := await ctx.channel.send(embed=embed))
             await self._update_embed_with_results(embed, ctx.author)
             await msg.edit(embed=embed)

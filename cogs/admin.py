@@ -122,7 +122,7 @@ class Admin(commands.Cog):
         embed = discord.Embed(
             title=":busts_in_silhouette: Servers",
             description=f"```{description if len(description) < 2048 else description[2045] + '...'}```",
-            colour=ctx.me.colour.value or 14323253,
+            colour=ctx.me.colour.value or self.bot.DEFAULT_COLOUR,
         )
         embed.set_footer(text=f"Prompted by @{ctx.author}", icon_url=ctx.author.avatar_url)
         await ctx.send(embed=embed)

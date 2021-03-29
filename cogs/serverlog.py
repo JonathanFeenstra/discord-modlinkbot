@@ -119,7 +119,7 @@ class ServerLog(commands.Cog):
     async def log_guild_addition(self, guild, log_entry=None):
         """Send webhook log message when guild joins."""
         embed = _prepare_serverlog_embed(guild)
-        embed.colour = guild.me.colour.value or 14323253
+        embed.colour = guild.me.colour.value or self.bot.DEFAULT_COLOUR
 
         guild_string = _format_guild_string(guild)
         bot_mention = guild.me.mention
@@ -143,7 +143,7 @@ class ServerLog(commands.Cog):
         """Send webhook log message when guild leaves."""
         embed = _prepare_serverlog_embed(guild)
         embed.description = f":outbox_tray: {guild.me.mention} has been removed from {_format_guild_string(guild)}."
-        embed.colour = 14323253
+        embed.colour = self.bot.DEFAULT_COLOUR
         embed.set_author(name=guild.name, icon_url=guild.icon_url)
         await self.send_serverlog(embed, guild.owner or guild.me)
 

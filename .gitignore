@@ -3,3 +3,4 @@ __pycache__/
 config.py
 modlinkbot.db
 modlinkbot.db-journal
+modlinkbot.log

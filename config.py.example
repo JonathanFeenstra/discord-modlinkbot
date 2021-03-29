@@ -11,7 +11,10 @@ owner_ids = {
 }
 
 # SQLite database file location
-database_path = "modlinkbot.db"  
+database_path = "modlinkbot.db"
+
+# Log file location
+log_path = "modlinkbot.log"
 
 # Server limit, after which the bot will automatically leave any new servers
 # Bot needs to be verified above 100 servers: https://support.discord.com/hc/en-us/articles/360040720412
