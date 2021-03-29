@@ -87,14 +87,14 @@ class General(commands.Cog):
     @commands.command(aliases=["admins"])
     @commands.cooldown(rate=1, per=10, type=commands.BucketType.channel)
     async def showadmins(self, ctx):
-        """Send embed with admin IDs."""
-        description = ", ".join(str(_id) for _id in self.bot.owner_ids)
+        """Send embed with admins."""
+        description = ", ".join(f"<@{owner_id}>" for owner_id in self.bot.owner_ids)
         if not description:
             description = "No admins."
         elif len(description) > 2048:
             description = f"{description[:2045]}..."
         embed = discord.Embed(
-            title=":sunglasses: Bot Admin IDs", description=description, colour=ctx.me.colour.value or 14323253
+            title=":sunglasses: Bot Admins", description=description, colour=ctx.me.colour.value or 14323253
         )
         await ctx.send(embed=embed)
 
