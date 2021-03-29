@@ -10,6 +10,7 @@ aiosqlite = "*"
 
 [dev-packages]
 black = "*"
+isort = "*"
 pre-commit = "*"
 
 [requires]
