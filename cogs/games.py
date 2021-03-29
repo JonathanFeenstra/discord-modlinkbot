@@ -32,7 +32,7 @@ INCLUDE_NSFW_MODS = {0: "Never", 1: "Always", 2: "Only in NSFW channels"}
 
 
 def parse_game_dir(game_dir: str):
-    """Parse game directory and return canonical name or raise `ValueError` if invalid."""
+    """Parse game directory and return canonical name or raise `UserInputError` if invalid."""
     if match := GAME_DOMAIN_RE.match(game_dir):
         return match.group("game_dir")
     raise commands.UserInputError(f"Invalid game directory {repr(game_dir)}.")
