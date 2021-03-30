@@ -31,11 +31,11 @@ GAME_DOMAIN_RE = re.compile(r"(?:https?://(?:www\.)?nexusmods\.com/)?(?P<game_di
 INCLUDE_NSFW_MODS = {0: "Never", 1: "Always", 2: "Only in NSFW channels"}
 
 
-def parse_game_dir(game_dir: str):
+def parse_game_dir(game_query: str):
     """Parse game directory and return canonical name or raise `UserInputError` if invalid."""
-    if match := GAME_DOMAIN_RE.match(game_dir):
+    if match := GAME_DOMAIN_RE.match("".join(game_query.split()).lower()):
         return match.group("game_dir")
-    raise commands.UserInputError(f"Invalid game directory {repr(game_dir)}.")
+    raise commands.UserInputError(f"Invalid game directory {repr(game_query)}.")
 
 
 class Games(commands.Cog):
@@ -46,11 +46,12 @@ class Games(commands.Cog):
         self.games = {}
         self.bot.loop.create_task(self._update_game_data())
 
-    async def _add_search_task(self, ctx, game_dir: str, channel_id=0):
+    async def _add_search_task(self, ctx, game_query: str, channel_id=0):
         try:
-            game_name, game_id = await self._get_game_id_and_name(parse_game_dir(game_dir))
+            game_dir = parse_game_dir(game_query)
+            game_name, game_id = await self._get_game_id_and_name(game_dir)
         except (ClientResponseError, NotFound):
-            return await ctx.send(f":x: Game https://www.nexusmods.com/{game_dir} not found.")
+            return await ctx.send(f":x: Game https://www.nexusmods.com/{game_query} not found.")
 
         async with self.bot.db_connect() as con:
             if await con.fetch_search_task_count(ctx.guild.id, channel_id) >= 5:
@@ -140,66 +141,72 @@ class Games(commands.Cog):
         # Add Skyrim Special Edition to channel games (overrides the server's default games):
         .addgame channel skyrimspecialedition
         """
+        await ctx.trigger_typing()
         if ctx.invoked_subcommand is None:
             if ctx.subcommand_passed:
-                await self.addgame_server(ctx, ctx.subcommand_passed)
+                await self.addgame_server(ctx, game_query=ctx.subcommand_passed)
             else:
                 await ctx.send(":x: No game specified.")
 
     @addgame.command(name="server", aliases=["guild", "s", "g"])
-    async def addgame_server(self, ctx, game_dir: str):
+    async def addgame_server(self, ctx, *, game_query: str):
         """Add a game to search mods for in the server using the name from the Nexus Mods URL.
 
         Example:
         # Add Kingdom Come Deliverance to the server's default games:
         .addgame server kingdomcomedeliverance
         """
-        await self._add_search_task(ctx, game_dir)
+        await ctx.trigger_typing()
+        await self._add_search_task(ctx, game_query)
 
     @addgame.command(name="channel", aliases=["c"])
-    async def addgame_channel(self, ctx, game_dir: str):
+    async def addgame_channel(self, ctx, *, game_query: str):
         """Add a game to search mods for in the channel using the name from the Nexus Mods URL.
 
         Example:
          # Add Skyrim Special Edition to channel games (overrides the server's default games):
         .addgame channel skyrimspecialedition
         """
-        await self._add_search_task(ctx, game_dir, ctx.channel.id)
+        await ctx.trigger_typing()
+        await self._add_search_task(ctx, game_query, ctx.channel.id)
 
     @commands.group(aliases=["dg"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def delgame(self, ctx):
         """Delete a game to search mods for in the server or channel."""
+        await ctx.trigger_typing()
         if ctx.invoked_subcommand is None:
-            if game_dir := ctx.subcommand_passed:
-                game_dir = parse_game_dir(game_dir)
+            if game_query := ctx.subcommand_passed:
+                game_dir = parse_game_dir(game_query)
                 async with self.bot.db_connect() as con:
                     if await con.fetch_channel_has_search_task(ctx.channel.id, game_dir):
-                        await self.delgame_channel(ctx, game_dir)
+                        await self.delgame_channel(ctx, game_query=game_dir)
                     else:
-                        await self.delgame_server(ctx, game_dir)
+                        await self.delgame_server(ctx, game_query=game_dir)
             else:
                 await ctx.send(":x: No game specified.")
 
     @delgame.command(name="server", aliases=["guild", "s", "g"])
-    async def delgame_server(self, ctx, game_dir: str):
+    async def delgame_server(self, ctx, *, game_query: str):
         """Delete a game to search mods for in the server."""
-        game_dir = parse_game_dir(game_dir)
+        await ctx.trigger_typing()
+        game_dir = parse_game_dir(game_query)
         async with self.bot.db_connect() as con:
             await con.enable_foreign_keys()
             if game := await con.fetch_guild_search_task_game_id_and_name(ctx.guild.id, game_dir):
                 game_id, game_name = game
                 await con.delete_search_task(ctx.guild.id, 0, game_id)
                 await con.commit()
-                await ctx.send(f":white_check_mark: Server filter for **{game_name}** deleted.")
+                await ctx.send(f":white_check_mark: **{game_name}** deleted from server games.")
             else:
-                await ctx.send(f":x: Game `{game_dir}` not found in server filters.")
+                await ctx.send(f":x: Game `{game_dir}` not found in server games.")
 
     @delgame.command(name="channel", aliases=["c"])
-    async def delgame_channel(self, ctx, game_dir: str):
+    async def delgame_channel(self, ctx, *, game_query: str):
         """Delete a game to search mods for in the channel."""
-        game_dir = parse_game_dir(game_dir)
+        await ctx.trigger_typing()
+        game_dir = parse_game_dir(game_query)
         async with self.bot.db_connect() as con:
             if game := await con.fetch_channel_search_task_game_id_and_name(ctx.channel.id, game_dir):
                 game_id, game_name = game
@@ -209,15 +216,16 @@ class Games(commands.Cog):
                     await con.enable_foreign_keys()
                     await con.delete_channel(ctx.channel.id)
                 await con.commit()
-                await ctx.send(f":white_check_mark: Channel filter for **{game_name}** deleted.")
+                await ctx.send(f":white_check_mark: **{game_name}** deleted from channel games.")
             else:
-                await ctx.send(f":x: Game `{game_dir}` not found in channel filters.")
+                await ctx.send(f":x: Game `{game_dir}` not found in channel games.")
 
     @commands.group(aliases=["reset"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def clear(self, ctx):
         """Clear games to search mods for in the server or channel."""
+        await ctx.trigger_typing()
         if ctx.invoked_subcommand is None:
             if ctx.subcommand_passed:
                 return await ctx.send(
@@ -232,19 +240,21 @@ class Games(commands.Cog):
     @clear.command(name="server", aliases=["guild", "s", "g"])
     async def clear_server(self, ctx):
         """Clear games to search mods for in the server."""
+        await ctx.trigger_typing()
         async with self.bot.db_connect() as con:
             await con.clear_guild_search_tasks(ctx.guild.id)
             await con.commit()
-        await ctx.send(":white_check_mark: Server filters cleared.")
+        await ctx.send(":white_check_mark: Server games cleared.")
 
     @clear.command(name="channel", aliases=["c"])
     async def clear_channel(self, ctx):
         """"Clear games to search mods for in the channel."""
+        await ctx.trigger_typing()
         async with self.bot.db_connect() as con:
             await con.enable_foreign_keys()
             await con.delete_channel(ctx.channel.id)
             await con.commit()
-        await ctx.send(":white_check_mark: Channel filters cleared.")
+        await ctx.send(":white_check_mark: Channel games cleared.")
 
 
 def setup(bot):
