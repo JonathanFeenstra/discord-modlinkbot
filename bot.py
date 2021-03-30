@@ -294,11 +294,7 @@ class ModLinkBot(commands.Bot):
 
     async def on_command_error(self, ctx, error):
         """Handle command exceptions."""
-        if (
-            isinstance(error, commands.CommandNotFound)
-            or ctx.command.has_error_handler()
-            or (ctx.cog and ctx.cog.has_error_handler())
-        ):
+        if isinstance(error, commands.CommandNotFound) or hasattr(ctx.command, "on_error"):
             return
 
         error = getattr(error, "original", error)
