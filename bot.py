@@ -247,11 +247,18 @@ class ModLinkBot(commands.Bot):
         """Check if `user` is a bot owner."""
         return user.id in self.owner_ids
 
-    async def block_id(self, _id: int):
+    async def block_id(self, id_to_block: int):
         """Block a guild or user by ID."""
-        self.blocked.add(_id)
+        self.blocked.add(id_to_block)
         async with self.db_connect() as con:
-            await con.insert_blocked_id(_id)
+            await con.insert_blocked_id(id_to_block)
+            await con.commit()
+
+    async def unblock_id(self, id_to_unblock: int):
+        """Unblock a guild or user by ID."""
+        self.blocked.remove(id_to_unblock)
+        async with self.db_connect() as con:
+            await con.delete_blocked_id(id_to_unblock)
             await con.commit()
 
     async def on_ready(self):

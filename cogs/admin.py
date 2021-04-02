@@ -19,8 +19,25 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+import re
+
 import discord
 from discord.ext import commands
+
+
+class UserOrGuildIDConverter(commands.MemberConverter):
+    """Converts to a `discord.User` or `dicord.Guild` ID."""
+
+    MENTION_RE = re.compile(r"<@!?([0-9]+)>$")
+
+    async def convert(self, ctx: commands.Context, argument: str) -> int:
+        """Convert to a `discord.User` or `dicord.Guild` ID."""
+        if match := self._get_id_match(argument) or self.MENTION_RE.match(argument):
+            return int(match.group(1))
+        if guild := ctx.guild:
+            if member := guild.get_member_named(argument) or await self.query_member_named(guild, argument):
+                return member.id
+        raise commands.BadArgument(f"{repr(argument)} could not be converted to a guild or user ID.")
 
 
 class Admin(commands.Cog):
@@ -80,7 +97,7 @@ class Admin(commands.Cog):
         print(f"{self.bot.user.name} has been logged out by {ctx.author}.")
         await self.bot.close()
 
-    @commands.command(aliases=["username"])
+    @commands.command(aliases=["username", "rename"])
     async def changeusername(self, ctx, *, username: str):
         """Change the bot's username."""
         try:
@@ -90,7 +107,7 @@ class Admin(commands.Cog):
         else:
             await ctx.send(f":white_check_mark: Username set to {repr(username)}.")
 
-    @commands.command(aliases=["avatar"])
+    @commands.command(aliases=["avatar", "pfp"])
     async def changeavatar(self, ctx, *, url: str = None):
         """Change the bot's avatar picture with an image attachment or URL."""
         if url is None:
@@ -108,10 +125,10 @@ class Admin(commands.Cog):
         else:
             await ctx.send(":white_check_mark: Avatar changed.")
 
-    @commands.command(aliases=["guildlist", "servers", "serverlist"])
+    @commands.command(aliases=["guildlist", "guilds", "serverlist"])
     @commands.cooldown(rate=1, per=30, type=commands.BucketType.channel)
-    async def guilds(self, ctx):
-        """Send list of guilds that bot is a member of."""
+    async def servers(self, ctx):
+        """Send list of servers that bot is a member of."""
         guilds_info = [f"{'Name': <32}Members"]
 
         for guild in self.bot.guilds:
@@ -128,24 +145,23 @@ class Admin(commands.Cog):
         await ctx.send(embed=embed)
 
     @commands.command()
-    async def block(self, ctx, _id: int):
+    async def block(self, ctx, *, id_to_block: UserOrGuildIDConverter):
         """Block a guild or user from using the bot."""
-        if guild := self.bot.get_guild(_id):
+        if id_to_block == self.bot.app_owner_id:
+            return await ctx.send(":x: App owner cannot be blocked.")
+        if guild := self.bot.get_guild(id_to_block):
             await guild.leave()
-        await self.bot.block(_id)
-        await ctx.send(f":white_check_mark: Blocked ID `{_id}`.")
+        await self.bot.block_id(id_to_block)
+        await ctx.send(f":white_check_mark: Blocked ID `{id_to_block}`.")
 
     @commands.command()
-    async def unblock(self, ctx, blocked_id: int):
+    async def unblock(self, ctx, *, blocked_id: UserOrGuildIDConverter):
         """Unblock a guild or user from using the bot."""
         try:
-            self.bot.blocked.remove(blocked_id)
+            await self.bot.unblock_id(blocked_id)
         except KeyError:
             await ctx.send(f":x: ID `{blocked_id}` was not blocked.")
         else:
-            async with self.bot.db_connect() as con:
-                await con.delete_blocked_id(blocked_id)
-                await con.commit()
             await ctx.send(f":white_check_mark: ID `{blocked_id}` is no longer blocked.")
 
     @commands.Cog.listener()
