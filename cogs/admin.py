@@ -25,19 +25,64 @@ import discord
 from discord.ext import commands
 
 
-class UserOrGuildIDConverter(commands.MemberConverter):
+async def get_member(guild, username: str, discriminator: str) -> discord.Member:
+    """Get guild member with the specified username and discriminator if found."""
+    return discord.utils.get(guild.members, name=username, discriminator=discriminator) or discord.utils.get(
+        await _query_members_using_websocket(guild, username), name=username, discriminator=discriminator
+    )
+
+
+async def get_member_named(guild, name: str) -> discord.Member:
+    """Get guild member with the specified name if found."""
+    if name.startswith("@"):
+        return discord.utils.find(lambda m: name[1:] in (m.name, m.nick) or name == m.nick, guild.members)
+    return _find_member(name, guild.members) or _find_member(name, await _query_members_using_websocket(guild, name))
+
+
+async def _query_members_using_websocket(guild, name: str):
+    return await guild._state.query_members(
+        guild, query=name, limit=100, user_ids=None, presences=False, cache=guild._state.member_cache_flags.joined
+    )
+
+
+def _find_member(name: str, members):
+    return discord.utils.find(lambda m: name in (m.name, m.nick), members)
+
+
+class UserOrGuildIDConverter(commands.IDConverter):
     """Converts to a `discord.User` or `dicord.Guild` ID."""
 
     MENTION_RE = re.compile(r"<@!?([0-9]+)>$")
+    DISCRIMINATOR_RE = re.compile(r"#([0-9]{4})$")
 
-    async def convert(self, ctx: commands.Context, argument: str) -> int:
+    async def convert(self, ctx, argument: str) -> int:
         """Convert to a `discord.User` or `dicord.Guild` ID."""
         if match := self._get_id_match(argument) or self.MENTION_RE.match(argument):
             return int(match.group(1))
-        if guild := ctx.guild:
-            if member := guild.get_member_named(argument) or await self.query_member_named(guild, argument):
-                return member.id
+        if user := await self.get_user_named(ctx, argument):
+            return user.id
         raise commands.BadArgument(f"{repr(argument)} could not be converted to a guild or user ID.")
+
+    async def get_user_named(self, ctx, name: str) -> discord.User:
+        """Get user with the specified name if found."""
+        if split_name := self.split_name(name):
+            username, discriminator = split_name
+            if result := discord.utils.find(lambda m: m.nick == name, ctx.guild.members) or await get_member(
+                ctx.guild, username, discriminator
+            ):
+                return result
+            users = ctx._state._users.values()
+            return discord.utils.find(
+                lambda u: u.name == username and u.discriminator == discriminator, users
+            ) or discord.utils.find(lambda u: u.name == username, users)
+        return await get_member_named(ctx.guild, name)
+
+    def split_name(self, name: str):
+        """Split name into username and discriminator if found."""
+        if len(name) > 5 and (match := self.DISCRIMINATOR_RE.match(name[-5:])):
+            username = name[1:-5] if name.startswith("@") else name[:-5]
+            discriminator = match.group(1)
+            return username, discriminator
 
 
 class Admin(commands.Cog):
@@ -149,6 +194,8 @@ class Admin(commands.Cog):
         """Block a guild or user from using the bot."""
         if id_to_block == self.bot.app_owner_id:
             return await ctx.send(":x: App owner cannot be blocked.")
+        if id_to_block in self.bot.blocked:
+            return await ctx.send(":x: ID is already blocked.")
         if guild := self.bot.get_guild(id_to_block):
             await guild.leave()
         await self.bot.block_id(id_to_block)
