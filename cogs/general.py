@@ -37,9 +37,9 @@ class General(commands.Cog):
         modlinkbot = ctx.me
         embed = discord.Embed(
             title=f":link: Add {modlinkbot.name} to your server",
-            description=f"Use [this link](https://discordapp.com/oauth2/authorize?client_id={modlinkbot.id}"
-            f"&permissions=19649&scope=bot) to add {modlinkbot.mention} to your server. The permissions 'Create Invite' "
-            "and 'View Audit Log' are optional. Use `.help addgame` for info about setting up search tasks.",
+            description=f"Use [this link]({self.bot.oauth_url}) to add {modlinkbot.mention} to your server. "
+            "The permissions 'Create Invite' and 'View Audit Log' are optional. Use `.help addgame` for info about setting "
+            "up search tasks.",
             colour=modlinkbot.colour.value or self.bot.DEFAULT_COLOUR,
         )
         await ctx.send(embed=embed)

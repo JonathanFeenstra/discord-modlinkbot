@@ -33,7 +33,7 @@ import config
 from aionxm import RequestHandler
 from storage import connect
 
-__version__ = "0.2a4"
+__version__ = "0.2a5"
 
 
 GITHUB_URL = "https://github.com/JonathanFeenstra/discord-modlinkbot"
@@ -67,7 +67,7 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
             name="Links",
             value=(
                 f"[Discord Bot List](https://top.gg/bot/665861255051083806) | [GitHub]({GITHUB_URL}) | [Add to your server]"
-                f"(https://discordapp.com/oauth2/authorize?client_id={bot.user.id}&permissions=19649&scope=bot)"
+                f"({bot.oauth_url})"
             ),
             inline=False,
         )
@@ -167,6 +167,17 @@ class ModLinkBot(commands.Bot):
             await self.wait_until_ready()
             await self._update_guilds(con)
 
+        self.oauth_url = discord.utils.oauth_url(
+            self.user.id,
+            permissions=discord.Permissions(
+                view_audit_log=True,
+                create_instant_invite=True,
+                read_messages=True,
+                send_messages=True,
+                embed_links=True,
+                add_reactions=True,
+            ),
+        )
         self._load_extensions("admin", "games", "general", "modsearch")
         print(f"{self.user.name} is ready.")
 
