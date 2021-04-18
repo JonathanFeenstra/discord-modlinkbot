@@ -351,10 +351,16 @@ class ModSearch(commands.Cog):
                     check=lambda reaction, user: user == ctx.author and reaction.emoji == "🗑️",
                 )
             except asyncio.TimeoutError:
-                await last_msg.remove_reaction("🗑️", self.bot.user)
+                try:
+                    await last_msg.remove_reaction("🗑️", self.bot.user)
+                except discord.NotFound:
+                    pass
             else:
                 for msg in messages:
-                    await msg.delete()
+                    try:
+                        await msg.delete()
+                    except discord.NotFound:
+                        pass
 
 
 def setup(bot):
