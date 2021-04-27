@@ -248,7 +248,7 @@ class Games(commands.Cog):
 
     @clear.command(name="channel", aliases=["c"])
     async def clear_channel(self, ctx):
-        """"Clear games to search mods for in the channel."""
+        """Clear games to search mods for in the channel."""
         await ctx.trigger_typing()
         async with self.bot.db_connect() as con:
             await con.enable_foreign_keys()
