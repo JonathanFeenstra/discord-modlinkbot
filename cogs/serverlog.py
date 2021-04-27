@@ -142,10 +142,10 @@ class ServerLog(commands.Cog):
     async def log_guild_removal(self, guild):
         """Send webhook log message when guild leaves."""
         embed = _prepare_serverlog_embed(guild)
-        embed.description = f":outbox_tray: {guild.me.mention} has been removed from {_format_guild_string(guild)}."
+        embed.description = f":outbox_tray: {self.bot.user.mention} has been removed from {_format_guild_string(guild)}."
         embed.colour = self.bot.DEFAULT_COLOUR
         embed.set_author(name=guild.name, icon_url=guild.icon_url)
-        await self.send_serverlog(embed, guild.owner or guild.me)
+        await self.send_serverlog(embed, guild.owner or self.bot.user)
 
     async def send_serverlog(self, embed, log_author):
         """Send server log message to the configured webhook."""
