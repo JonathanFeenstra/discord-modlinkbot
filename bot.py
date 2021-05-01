@@ -49,7 +49,7 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
             "search queries in messages {between braces, separated by commas}, 3 to 100 characters in length, outside of "
             "any [Discord markdown](https://support.discord.com/hc/en-us/articles/210298617) or ||[spoiler tags]"
             "(https://support.discord.com/hc/en-us/articles/360022320632)||. Queries cannot contain any of the following "
-            'characters: ``\\";:=*%$&_<>?`[]``.'
+            'characters: ``\\";:=*%$&_<>?`[]{}``.'
         )
 
     async def send_bot_help(self, mapping):

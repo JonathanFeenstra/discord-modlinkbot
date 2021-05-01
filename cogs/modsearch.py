@@ -38,7 +38,7 @@ from discord.ext import commands
 from aionxm import NotFound, parse_query
 
 # Match text {between braces} excluding specific characters (";:=*%$&_<>?`[])
-SEARCH_QUERIES_RE = re.compile(r"{([^\";:=\*%\$&_<>\?`\[\]]*?)}", re.DOTALL)
+SEARCH_QUERIES_RE = re.compile(r"{([^\";:=\*%\$&_<>\?`\[\]{]*?)}", re.DOTALL)
 # Match Discord markdown: https://support.discord.com/hc/en-us/articles/210298617
 MARKDOWN_RE = re.compile(
     (
