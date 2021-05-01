@@ -211,7 +211,10 @@ class ModSearch(commands.Cog):
             return
         if (ctx := await self.bot.get_context(msg)).valid or not (games := await self._get_games_to_search_for(ctx)):
             return
-        if not ctx.channel.permissions_for(ctx.me).embed_links:
+        permissions = ctx.channel.permissions_for(ctx.me)
+        if not permissions.send_messages:
+            return
+        if not permissions.embed_links:
             await ctx.send(":x: Searching mods requires 'Embed Links' permission.")
         else:
             await self.send_nexus_results(ctx, queries, games)

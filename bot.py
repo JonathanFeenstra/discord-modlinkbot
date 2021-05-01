@@ -278,7 +278,7 @@ class ModLinkBot(commands.Bot):
 
     async def on_message(self, msg):
         """Process new messages that are not from bots or DMs."""
-        if not self.validate_msg(msg):
+        if not self.validate_msg(msg) or not msg.channel.permissions_for(msg.guild.me).send_messages:
             return
         await self.process_commands(msg)
 
