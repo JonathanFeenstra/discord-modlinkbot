@@ -80,10 +80,7 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
         description = [self.description]
 
         if self.context.bot.get_cog("Games"):
-            description.append(
-                f"Use `{prefix}help addgame` for info about configuring games to search Nexus Mods for. "
-                f"Use `{prefix}help commands for the complete list of available commands."
-            )
+            description.append(f"Use `{prefix}help addgame` for info about configuring games to search Nexus Mods for. ")
         else:
             description.append(
                 "**Important:** Load the Games extension to enable search configuration settings using "
