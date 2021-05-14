@@ -29,6 +29,7 @@ import asyncio
 import re
 from html import unescape
 from time import perf_counter
+from typing import Any, Optional, Union
 from urllib.parse import quote
 
 import discord
@@ -56,7 +57,7 @@ MARKDOWN_RE = re.compile(
 )
 
 
-def find_queries(text: str) -> list:
+def find_queries(text: str) -> list[str]:
     """Find unique Nexus Mods search queries in unformatted parts of text."""
     return list(
         dict.fromkeys(
@@ -79,7 +80,7 @@ class ResultsEmbed(discord.Embed):
     )
     WHITESPACE_RE = re.compile(r"\s+")
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         self.search_task = kwargs.get("search_task", {})
         self.set_author(
@@ -88,7 +89,7 @@ class ResultsEmbed(discord.Embed):
             icon_url="https://images.nexusmods.com/favicons/ReskinOrange/favicon-32x32.png",
         )
 
-    def display_single_result(self, result: dict, author_icon_url: str, hide_thumbnail: bool):
+    def display_single_result(self, result: dict, author_icon_url: str, hide_thumbnail: bool) -> None:
         """Fill embed with single mod search result."""
         mod = result["mod"]
         self.set_author(
@@ -114,13 +115,13 @@ class ResultsEmbed(discord.Embed):
         self.add_field(name="Downloads", value=f"{mod['downloads']:,}")
         self.add_field(name="Endorsements", value=f"{mod['endorsements']:,}")
 
-    def display_single_query_results(self, query_results: list):
+    def display_single_query_results(self, query_results: list[dict]) -> None:
         """Fill embed with single query mod search results."""
         query = self.search_task["queries"][0]
         self.title = f"Search results for: **{repr(self.WHITESPACE_RE.sub(' ', query))}**"
         self._add_query_results(query, query_results)
 
-    def add_result_fields(self, results):
+    def add_result_fields(self, results: list) -> None:
         """Fill embed with multiple query mod search results."""
         queries_and_results = zip(self.search_task["queries"], results)
         if len(self.search_task["games"]) > 1:
@@ -132,16 +133,16 @@ class ResultsEmbed(discord.Embed):
         else:
             self._author["name"] += f" | {self.search_task['games'][0][1]}"
             for query, query_results in queries_and_results:
-                self._add_query_results(query, query_results, f"Results for: {repr(query)}")
+                self._add_query_results(query, query_results, single_game=True)
 
-    def _add_query_results(self, query: str, query_results: dict, field_name=None):
+    def _add_query_results(self, query: str, query_results: list[dict], single_game: bool = False) -> None:
         if not query_results:
-            self.add_no_results_field(query)
+            self.add_no_results_field(query, f"No results for: {repr(query)}." if single_game else "No results.")
         else:
             for result in query_results:
-                self.add_result_field(result, field_name)
+                self.add_result_field(result, f"Results for: {repr(query)}" if single_game else None, not single_game)
 
-    def add_result_field(self, result: dict, name=None):
+    def add_result_field(self, result: dict, name: Optional[str] = None, inline: bool = True) -> None:
         """Add search result field to embed."""
         response, mod = result["response"], result["mod"]
         if isinstance(response, ClientResponseError):
@@ -155,9 +156,9 @@ class ResultsEmbed(discord.Embed):
                 f"/mods/?RH_ModList=include_adult:{response['include_adult']},"
                 f"open:true,search_filename:{'+'.join(response['terms'])}#permalink)"
             )
-        self.add_field(name=name or result["game_name"], value=result_hyperlinks)
+        self.add_field(name=name or result["game_name"], value=result_hyperlinks, inline=inline)
 
-    def add_response_error_field(self, result: dict):
+    def add_response_error_field(self, result: dict) -> None:
         """Add field to embed with info about the result's error response."""
         error = result["response"]
         self.add_field(
@@ -167,11 +168,11 @@ class ResultsEmbed(discord.Embed):
             inline=False,
         )
 
-    def add_no_results_field(self, query: str):
+    def add_no_results_field(self, query: str, name: str = "No results.") -> None:
         """Add field to embed for when there are no search results."""
-        self.add_field(name="No results.", value=self.GLOBAL_SEARCH_FORMAT.format(quote(query)), inline=False)
+        self.add_field(name=name, value=self.GLOBAL_SEARCH_FORMAT.format(quote(query)), inline=False)
 
-    def display_response_error(self, result: dict):
+    def display_response_error(self, result: dict) -> None:
         """Display response error info in embed."""
         error = result["response"]
         self.title = f"`Error {error.status}: {error.message}`"
@@ -182,7 +183,7 @@ class ResultsEmbed(discord.Embed):
             f"| {self.GLOBAL_SEARCH_FORMAT.format(result['query'])}"
         )
 
-    def to_dict(self):
+    def to_dict(self) -> dict:
         """Converts this embed object into a dict. Overridden from `discord.Embed` to use `super().__slots__`."""
         result = {key[1:]: getattr(self, key) for key in super().__slots__ if key[0] == "_" and hasattr(self, key)}
 
@@ -201,11 +202,11 @@ class ResultsEmbed(discord.Embed):
 class ModSearch(commands.Cog):
     """Cog for searching Nexus Mods."""
 
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
     @commands.Cog.listener()
-    async def on_message(self, msg):
+    async def on_message(self, msg: discord.Message) -> None:
         """Check for mod search queries in valid new message and send results."""
         if not self.bot.validate_msg(msg) or not (queries := find_queries(msg.content)):
             return
@@ -220,14 +221,14 @@ class ModSearch(commands.Cog):
             await self.send_nexus_results(ctx, queries, games)
 
     @commands.Cog.listener()
-    async def on_message_edit(self, before, after):
+    async def on_message_edit(self, before: discord.Message, after: discord.Message) -> None:
         """Check for mod search queries when content of last message in channel is edited and send results."""
         if before.content != after.content and after == after.channel.last_message:
             await self.on_message(after)
 
     @commands.command(aliases=["search", "modsearch"])
     @commands.has_permissions(embed_links=True)
-    async def nexus(self, ctx, *, query_text: str):
+    async def nexus(self, ctx: commands.Context, *, query_text: str) -> None:
         """Search for query on Nexus Mods."""
         if not (games := await self._get_games_to_search_for(ctx)):
             await ctx.send(":x: No search filters configured.")
@@ -236,13 +237,15 @@ class ModSearch(commands.Cog):
         else:
             await ctx.send(":x: Invalid query.")
 
-    async def _get_games_to_search_for(self, ctx) -> list:
+    async def _get_games_to_search_for(self, ctx: commands.Context) -> list[tuple[int, str]]:
         async with self.bot.db_connect() as con:
             return await con.fetch_channel_search_tasks_game_id_and_name(
                 ctx.channel.id
             ) or await con.fetch_guild_search_tasks_game_id_and_name(ctx.guild.id)
 
-    async def send_nexus_results(self, ctx, queries, games):
+    async def send_nexus_results(
+        self, ctx: commands.Context, queries: list[str], games: list[tuple[int, str]]
+    ) -> Optional[discord.Message]:
         """Send Nexus Mods results for the specified queries and games."""
         await ctx.trigger_typing()
         if len(queries) > (
@@ -264,7 +267,7 @@ class ModSearch(commands.Cog):
         async with self.bot.db_connect() as con:
             return await con.fetch_guild_nsfw_flag(guild_id)
 
-    async def distribute_results(self, ctx, search_task: dict, queries_per_msg: int):
+    async def distribute_results(self, ctx: commands.Context, search_task: dict[str, Any], queries_per_msg: int):
         """Distribute search results per message."""
         result_messages = []
         all_queries = search_task["queries"]
@@ -278,7 +281,7 @@ class ModSearch(commands.Cog):
             await msg.edit(embed=embed)
         await self._add_reaction_to_delete_messages(ctx, result_messages)
 
-    async def _update_embed_with_results(self, embed: ResultsEmbed, searcher):
+    async def _update_embed_with_results(self, embed: ResultsEmbed, searcher: Union[str, discord.User]) -> None:
         embed.description = discord.Embed.Empty
         start_time = perf_counter()
         results = await self._collect_modsearch_results(embed.search_task)
@@ -286,14 +289,14 @@ class ModSearch(commands.Cog):
         await self._embed_results(embed, results)
         embed.set_footer(text=f"Searched by @{searcher} | Took: {round(end_time - start_time, 2)} s")
 
-    async def _collect_modsearch_results(self, search_task: dict) -> list[list]:
+    async def _collect_modsearch_results(self, search_task: dict[str, Any]) -> list[list[dict]]:
         results = []
         for query in search_task["queries"]:
             query_results = await self._search_mods_for_query(query, search_task["games"], search_task["include_adult"])
             results.append(query_results)
         return results
 
-    async def _search_mods_for_query(self, query: str, games, include_adult: bool) -> list[dict]:
+    async def _search_mods_for_query(self, query: str, games: list[tuple[int, str]], include_adult: bool) -> list[dict]:
         search_results = []
         for game_id, game_name in games:
             result = {"query": query, "game_id": game_id, "game_name": game_name}
@@ -309,7 +312,7 @@ class ModSearch(commands.Cog):
             search_results.append(result)
         return search_results
 
-    async def _embed_results(self, embed: ResultsEmbed, results):
+    async def _embed_results(self, embed: ResultsEmbed, results: list[list[dict]]):
         if len(results) == 1:
             if len(query_results := results[0]) == 1:
                 result = query_results[0]
@@ -332,7 +335,7 @@ class ModSearch(commands.Cog):
                 author_icon_url = "https://www.nexusmods.com/assets/images/default/avatar.png"
             embed.display_single_result(result, author_icon_url, hide_thumbnail)
 
-    async def check_if_nsfw(self, response) -> bool:
+    async def check_if_nsfw(self, response: dict) -> bool:
         """Check if `response` has an NSFW mod as first result."""
         mod = response["results"][0]
         try:
@@ -343,7 +346,7 @@ class ModSearch(commands.Cog):
             return check["results"][0]["mod_id"] != mod["mod_id"]
         return True
 
-    async def _add_reaction_to_delete_messages(self, ctx, messages):
+    async def _add_reaction_to_delete_messages(self, ctx: commands.Context, messages: list[discord.Message]) -> None:
         last_msg = messages[-1]
         if ctx.channel.permissions_for(ctx.me).add_reactions:
             await last_msg.add_reaction("🗑️")
@@ -366,5 +369,5 @@ class ModSearch(commands.Cog):
                         pass
 
 
-def setup(bot):
+def setup(bot: commands.Bot) -> None:
     bot.add_cog(ModSearch(bot))

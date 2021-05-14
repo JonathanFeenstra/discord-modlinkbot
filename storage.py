@@ -21,7 +21,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import sqlite3
 from asyncio import Lock
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Optional, Union
 
 from aiosqlite import Connection
 from aiosqlite.context import contextmanager
@@ -31,24 +31,19 @@ from aiosqlite.cursor import Cursor
 class AsyncDatabaseConnection(Connection):
     """Asynchronous SQLite database connection."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._lock = Lock()
 
-    async def __aenter__(self) -> "AsyncDatabaseConnection":
-        con = await self
-        await con.execute("PRAGMA journal_mode = WAL")
-        return con
-
-    async def enable_foreign_keys(self):
+    async def enable_foreign_keys(self) -> None:
         """Enable foreign key support."""
         await self.execute("PRAGMA foreign_keys = ON")
 
     @contextmanager
-    async def executefile(self, file_path: str) -> Cursor:
+    async def executefile(self, file: Union[str, bytes, int]) -> Cursor:
         """Execute an SQL script from a file."""
         async with self._lock:
-            with open(file_path) as script:
+            with open(file) as script:
                 return await self.executescript(script.read())
 
     @contextmanager
@@ -63,15 +58,15 @@ class AsyncDatabaseConnection(Connection):
 class GuildConnection(AsyncDatabaseConnection):
     """Database connection for managing guild data."""
 
-    async def insert_guild(self, guild_id: int):
+    async def insert_guild(self, guild_id: int) -> None:
         """Insert guild with the specified ID into the database."""
         await self.execute("INSERT OR IGNORE INTO guild VALUES (?, '.', 1)", (guild_id,))
 
-    async def set_guild_prefix(self, guild_id: int, prefix: str):
+    async def set_guild_prefix(self, guild_id: int, prefix: str) -> None:
         """Set the prefix of the guild with the specified ID."""
         await self.execute("UPDATE guild SET prefix = ? WHERE guild_id = ?", (prefix, guild_id))
 
-    async def set_guild_nsfw_flag(self, guild_id: int, nsfw: int):
+    async def set_guild_nsfw_flag(self, guild_id: int, nsfw: int) -> None:
         """Set the NSFW flag of the guild with the specified ID."""
         await self.execute("UPDATE guild SET nsfw = ? WHERE guild_id = ?", (nsfw, guild_id))
 
@@ -91,11 +86,11 @@ class GuildConnection(AsyncDatabaseConnection):
             return row[0]
         return None
 
-    async def delete_guild(self, guild_id: int):
+    async def delete_guild(self, guild_id: int) -> None:
         """Delete guild with the specified ID from the database."""
         await self.execute("DELETE FROM guild WHERE guild_id = ?", (guild_id,))
 
-    async def filter_guilds(self, keep_guild_ids: tuple[int]):
+    async def filter_guilds(self, keep_guild_ids: tuple[int, ...]):
         """Delete guilds with the specified IDs from the database."""
         if (keep_amount := len(keep_guild_ids)) < 1000:
             await self.execute(f"DELETE FROM guild WHERE guild_id NOT IN ({', '.join('?' * keep_amount)})", keep_guild_ids)
@@ -107,7 +102,7 @@ class GuildConnection(AsyncDatabaseConnection):
 class ChannelConnection(AsyncDatabaseConnection):
     """Database connection for managing channel data."""
 
-    async def insert_channel(self, channel_id: int, guild_id: int):
+    async def insert_channel(self, channel_id: int, guild_id: int) -> None:
         """Insert channel with the specified IDs into the database."""
         await self.execute("INSERT OR IGNORE INTO channel VALUES (?, ?)", (channel_id, guild_id))
 
@@ -115,7 +110,7 @@ class ChannelConnection(AsyncDatabaseConnection):
         """Fetch channel IDs and their guild IDs."""
         return await self.execute_fetchall("SELECT * FROM channel")
 
-    async def delete_channel(self, channel_id: int):
+    async def delete_channel(self, channel_id: int) -> None:
         """Delete channel with the specified ID."""
         await self.execute("DELETE FROM channel WHERE channel_id = ?", (channel_id,))
 
@@ -123,7 +118,7 @@ class ChannelConnection(AsyncDatabaseConnection):
 class GameAndSearchTaskConnection(AsyncDatabaseConnection):
     """Database connection for managing game and search task data."""
 
-    async def insert_game(self, game_id: int, game_dir: str, game_name: str):
+    async def insert_game(self, game_id: int, game_dir: str, game_name: str) -> None:
         """Insert game into the database."""
         await self.execute("INSERT OR IGNORE INTO game VALUES (?, ?, ?)", (game_id, game_dir, game_name))
 
@@ -131,7 +126,7 @@ class GameAndSearchTaskConnection(AsyncDatabaseConnection):
         """Fetch all games."""
         return await self.execute_fetchall("SELECT * FROM game")
 
-    async def insert_search_task(self, guild_id: int, channel_id: int, game_id: int):
+    async def insert_search_task(self, guild_id: int, channel_id: int, game_id: int) -> None:
         """Insert search task into the database."""
         await self.execute("INSERT OR IGNORE INTO search_task VALUES (?, ?, ?)", (guild_id, channel_id, game_id))
 
@@ -219,17 +214,17 @@ class GameAndSearchTaskConnection(AsyncDatabaseConnection):
             )
         )
 
-    async def delete_search_task(self, guild_id: int, channel_id: int, game_id: int):
+    async def delete_search_task(self, guild_id: int, channel_id: int, game_id: int) -> None:
         """Delete the specified search task."""
         await self.execute(
             "DELETE FROM search_task WHERE guild_id = ? AND channel_id = ? AND game_id = ?", (guild_id, channel_id, game_id)
         )
 
-    async def delete_channel_search_task(self, channel_id: int, game_id: int):
+    async def delete_channel_search_task(self, channel_id: int, game_id: int) -> None:
         """Delete channel search task for the specified game."""
         await self.execute("DELETE FROM search_task WHERE channel_id = ? AND game_id = ?", (channel_id, game_id))
 
-    async def clear_guild_search_tasks(self, guild_id: int):
+    async def clear_guild_search_tasks(self, guild_id: int) -> None:
         """Delete all guild search tasks for the specified guild."""
         await self.execute("DELETE FROM search_task WHERE guild_id = ? AND channel_id = 0", (guild_id,))
 
@@ -237,7 +232,7 @@ class GameAndSearchTaskConnection(AsyncDatabaseConnection):
 class BlockedConnection(AsyncDatabaseConnection):
     """Database connection for managing blocked IDs."""
 
-    async def insert_blocked_id(self, blocked_id: int):
+    async def insert_blocked_id(self, blocked_id: int) -> None:
         """Insert blocked ID into the database."""
         await self.execute("INSERT OR IGNORE INTO blocked VALUES (?)", (blocked_id,))
 
@@ -245,7 +240,7 @@ class BlockedConnection(AsyncDatabaseConnection):
         """Fetch all blocked IDs."""
         return (row[0] for row in await self.execute_fetchall("SELECT blocked_id FROM blocked"))
 
-    async def delete_blocked_id(self, blocked_id: int):
+    async def delete_blocked_id(self, blocked_id: int) -> None:
         """Delete a blocked ID from the database."""
         await self.execute("DELETE FROM blocked WHERE blocked_id = ?", (blocked_id,))
 
@@ -258,8 +253,13 @@ class ModLinkBotConnection(
 ):
     """modlinkbot's database connection."""
 
+    async def __aenter__(self) -> "ModLinkBotConnection":
+        con = await self
+        await con.execute("PRAGMA journal_mode = WAL")
+        return con
 
-def connect(path, iter_chunk_size: int = 64) -> "ModLinkBotConnection":
+
+def connect(path, iter_chunk_size: int = 64) -> ModLinkBotConnection:
     """Connect to the database."""
     return ModLinkBotConnection(
         lambda: sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES),

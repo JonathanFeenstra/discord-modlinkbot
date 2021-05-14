@@ -65,7 +65,7 @@ class RequestHandler:
         session: ClientSession,
         app_data: dict,
         api_key: Optional[str] = None,
-    ):
+    ) -> None:
         self.session = session
         # https://help.nexusmods.com/article/114-api-acceptable-use-policy
         app_url = app_data.get("url")

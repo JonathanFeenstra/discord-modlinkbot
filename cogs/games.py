@@ -20,6 +20,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import re
+from typing import Optional
 
 import discord
 from aiohttp import ClientResponseError
@@ -31,7 +32,7 @@ GAME_DOMAIN_RE = re.compile(r"(?:https?://(?:www\.)?nexusmods\.com/)?(?P<game_di
 INCLUDE_NSFW_MODS = {0: "Never", 1: "Always", 2: "Only in NSFW channels"}
 
 
-def parse_game_dir(game_query: str):
+def parse_game_dir(game_query: str) -> str:
     """Parse game directory and return canonical name or raise `UserInputError` if invalid."""
     if match := GAME_DOMAIN_RE.match("".join(game_query.split()).lower()):
         return match.group("game_dir")
@@ -41,12 +42,12 @@ def parse_game_dir(game_query: str):
 class Games(commands.Cog):
     """Cog to manage game configurations per server/channel."""
 
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.games = {}
         self.bot.loop.create_task(self._update_game_data())
 
-    async def _add_search_task(self, ctx, game_query: str, channel_id=0):
+    async def _add_search_task(self, ctx: commands.Context, game_query: str, channel_id=0) -> Optional[discord.Message]:
         try:
             game_dir = parse_game_dir(game_query)
             game_name, game_id = await self._get_game_id_and_name(game_dir)
@@ -72,7 +73,7 @@ class Games(commands.Cog):
                 return await self.bot.request_handler.scrape_game_id_and_name(game_dir)
         return game
 
-    async def _update_game_data(self):
+    async def _update_game_data(self) -> None:
         async with self.bot.db_connect() as con:
             try:
                 nexus_games = await self.bot.request_handler.get_all_games()
@@ -88,7 +89,7 @@ class Games(commands.Cog):
     @commands.command(aliases=["nsfw"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
-    async def setnsfw(self, ctx, flag: int):
+    async def setnsfw(self, ctx: commands.Context, flag: int) -> None:
         """Set NSFW flag for guild for when to include adult results (0=never; 1=always; 2=only in NSFW channels)."""
         if 0 <= flag <= 2:
             async with self.bot.db_connect() as con:
@@ -99,7 +100,7 @@ class Games(commands.Cog):
             await ctx.send(":x: NSFW flag must be 0 (never), 1 (always), or 2 (only in NSFW channels).")
 
     @commands.command(aliases=["games"])
-    async def showgames(self, ctx):
+    async def showgames(self, ctx: commands.Context) -> None:
         """List configured Nexus Mods games to search mods for in server/channel."""
         embed = discord.Embed(colour=self.bot.DEFAULT_COLOUR)
         embed.set_author(
@@ -131,7 +132,7 @@ class Games(commands.Cog):
     @commands.group(aliases=["ag"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
-    async def addgame(self, ctx):
+    async def addgame(self, ctx: commands.Context) -> None:
         """Add a game to search mods for in the server or channel using the name from the Nexus Mods URL.
 
         Examples:
@@ -149,7 +150,7 @@ class Games(commands.Cog):
                 await ctx.send(":x: No game specified.")
 
     @addgame.command(name="server", aliases=["guild", "s", "g"])
-    async def addgame_server(self, ctx, *, game_query: str):
+    async def addgame_server(self, ctx: commands.Context, *, game_query: str) -> None:
         """Add a game to search mods for in the server using the name from the Nexus Mods URL.
 
         Example:
@@ -160,7 +161,7 @@ class Games(commands.Cog):
         await self._add_search_task(ctx, game_query)
 
     @addgame.command(name="channel", aliases=["c"])
-    async def addgame_channel(self, ctx, *, game_query: str):
+    async def addgame_channel(self, ctx: commands.Context, *, game_query: str) -> None:
         """Add a game to search mods for in the channel using the name from the Nexus Mods URL.
 
         Example:
@@ -173,7 +174,7 @@ class Games(commands.Cog):
     @commands.group(aliases=["dg"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
-    async def delgame(self, ctx):
+    async def delgame(self, ctx: commands.Context) -> None:
         """Delete a game to search mods for in the server or channel."""
         await ctx.trigger_typing()
         if ctx.invoked_subcommand is None:
@@ -188,7 +189,7 @@ class Games(commands.Cog):
                 await ctx.send(":x: No game specified.")
 
     @delgame.command(name="server", aliases=["guild", "s", "g"])
-    async def delgame_server(self, ctx, *, game_query: str):
+    async def delgame_server(self, ctx: commands.Context, *, game_query: str) -> None:
         """Delete a game to search mods for in the server."""
         await ctx.trigger_typing()
         game_dir = parse_game_dir(game_query)
@@ -203,7 +204,7 @@ class Games(commands.Cog):
                 await ctx.send(f":x: Game `{game_dir}` not found in server games.")
 
     @delgame.command(name="channel", aliases=["c"])
-    async def delgame_channel(self, ctx, *, game_query: str):
+    async def delgame_channel(self, ctx: commands.Context, *, game_query: str) -> None:
         """Delete a game to search mods for in the channel."""
         await ctx.trigger_typing()
         game_dir = parse_game_dir(game_query)
@@ -223,7 +224,7 @@ class Games(commands.Cog):
     @commands.group(aliases=["reset"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
-    async def clear(self, ctx):
+    async def clear(self, ctx: commands.Context) -> Optional[discord.Message]:
         """Clear games to search mods for in the server or channel."""
         await ctx.trigger_typing()
         if ctx.invoked_subcommand is None:
@@ -238,7 +239,7 @@ class Games(commands.Cog):
                     await self.clear_server(ctx)
 
     @clear.command(name="server", aliases=["guild", "s", "g"])
-    async def clear_server(self, ctx):
+    async def clear_server(self, ctx: commands.Context) -> None:
         """Clear games to search mods for in the server."""
         await ctx.trigger_typing()
         async with self.bot.db_connect() as con:
@@ -247,7 +248,7 @@ class Games(commands.Cog):
         await ctx.send(":white_check_mark: Server games cleared.")
 
     @clear.command(name="channel", aliases=["c"])
-    async def clear_channel(self, ctx):
+    async def clear_channel(self, ctx: commands.Context) -> None:
         """Clear games to search mods for in the channel."""
         await ctx.trigger_typing()
         async with self.bot.db_connect() as con:
@@ -257,5 +258,5 @@ class Games(commands.Cog):
         await ctx.send(":white_check_mark: Channel games cleared.")
 
 
-def setup(bot):
+def setup(bot: commands.Bot) -> None:
     bot.add_cog(Games(bot))

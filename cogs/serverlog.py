@@ -21,12 +21,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import traceback
 from sys import stderr
+from typing import Optional
 
 import discord
 from discord.ext import commands
 
 
-async def get_guild_invite(guild):
+async def get_guild_invite(guild: discord.Guild) -> Optional[str]:
     """Get invite link to guild if possible."""
     if guild.me.guild_permissions.manage_guild:
         invites = await guild.invites()
@@ -34,7 +35,7 @@ async def get_guild_invite(guild):
             if not (invite.max_age or invite.temporary):
                 return invite.url
     if not (guild.channels and guild.me.guild_permissions.create_instant_invite):
-        return ""
+        return
     channel = guild.system_channel or guild.rules_channel or guild.public_updates_channel
     if channel and channel.permissions_for(guild.me).create_instant_invite:
         try:
@@ -47,10 +48,10 @@ async def get_guild_invite(guild):
                 return (await channel.create_invite(unique=False)).url
             except (discord.HTTPException, discord.NotFound):
                 continue
-    return ""
+    return
 
 
-def _prepare_serverlog_embed(guild):
+def _prepare_serverlog_embed(guild: discord.Guild) -> discord.Embed:
     embed = discord.Embed()
     embed.set_thumbnail(url=guild.banner_url)
     embed.timestamp = guild.created_at
@@ -66,29 +67,29 @@ def _prepare_serverlog_embed(guild):
     return embed
 
 
-def _format_guild_string(guild):
+def _format_guild_string(guild: discord.Guild) -> str:
     return f"**{discord.utils.escape_markdown(guild.name)}** ({guild.id})"
 
 
 class ServerLog(commands.Cog):
     """Cog for logging the addition and removal of modlinkbot to servers."""
 
-    def __init__(self, bot):
+    def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         self.webhook_adapter = discord.AsyncWebhookAdapter(self.bot.session)
 
     @property
-    def webhook(self):
+    def webhook(self) -> discord.Webhook:
         """Server log webhook."""
         return discord.Webhook.partial(*self.webhook_url.split("/")[-2:], adapter=self.webhook_adapter)
 
     @property
-    def webhook_url(self):
+    def webhook_url(self) -> str:
         """Configured server log webhook URL."""
         return getattr(self.bot.config, "server_log_webhook_url", False)
 
     @commands.Cog.listener()
-    async def on_guild_join(self, guild):
+    async def on_guild_join(self, guild: discord.Guild) -> None:
         """Log bot addition when joining a valid guild."""
         if not self.bot.validate_guild(guild):
             return
@@ -99,7 +100,7 @@ class ServerLog(commands.Cog):
             self.bot.unload_extension("cogs.serverlog")
 
     @commands.Cog.listener()
-    async def on_guild_remove(self, guild):
+    async def on_guild_remove(self, guild: discord.Guild) -> None:
         """Log bot removal when leaving a valid guild."""
         if not self.bot.validate_guild(guild):
             return
@@ -108,7 +109,9 @@ class ServerLog(commands.Cog):
         else:
             self.bot.unload_extension("cogs.serverlog")
 
-    async def _get_bot_addition_log_entry_if_found(self, guild, max_logs_to_check=50):
+    async def _get_bot_addition_log_entry_if_found(
+        self, guild: discord.Guild, max_logs_to_check=50
+    ) -> Optional[discord.AuditLogEntry]:
         if guild.me.guild_permissions.view_audit_log:
             async for log_entry in guild.audit_logs(action=discord.AuditLogAction.bot_add, limit=max_logs_to_check):
                 if log_entry.target == guild.me:
@@ -116,7 +119,7 @@ class ServerLog(commands.Cog):
                         return await guild.leave()
                     return log_entry
 
-    async def log_guild_addition(self, guild, log_entry=None):
+    async def log_guild_addition(self, guild: discord.Guild, log_entry: Optional[discord.AuditLogEntry] = None) -> None:
         """Send webhook log message when guild joins."""
         embed = _prepare_serverlog_embed(guild)
         embed.colour = guild.me.colour.value or self.bot.DEFAULT_COLOUR
@@ -139,7 +142,7 @@ class ServerLog(commands.Cog):
 
         await self.send_serverlog(embed, log_author)
 
-    async def log_guild_removal(self, guild):
+    async def log_guild_removal(self, guild: discord.Guild) -> None:
         """Send webhook log message when guild leaves."""
         embed = _prepare_serverlog_embed(guild)
         embed.description = f":outbox_tray: {self.bot.user.mention} has been removed from {_format_guild_string(guild)}."
@@ -147,7 +150,7 @@ class ServerLog(commands.Cog):
         embed.set_author(name=guild.name, icon_url=guild.icon_url)
         await self.send_serverlog(embed, guild.owner or self.bot.user)
 
-    async def send_serverlog(self, embed, log_author):
+    async def send_serverlog(self, embed: discord.Embed, log_author: discord.User) -> None:
         """Send server log message to the configured webhook."""
         try:
             await self.webhook.send(
@@ -160,5 +163,5 @@ class ServerLog(commands.Cog):
             traceback.print_tb(error.__traceback__)
 
 
-def setup(bot):
+def setup(bot: commands.Bot) -> None:
     bot.add_cog(ServerLog(bot))
