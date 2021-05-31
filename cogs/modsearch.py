@@ -202,6 +202,8 @@ class ResultsEmbed(discord.Embed):
 class ModSearch(commands.Cog):
     """Cog for searching Nexus Mods."""
 
+    DELETE_REACTION = "🗑️"
+
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
@@ -349,16 +351,18 @@ class ModSearch(commands.Cog):
     async def _add_reaction_to_delete_messages(self, ctx: commands.Context, messages: list[discord.Message]) -> None:
         last_msg = messages[-1]
         if ctx.channel.permissions_for(ctx.me).add_reactions:
-            await last_msg.add_reaction("🗑️")
+            await last_msg.add_reaction(self.DELETE_REACTION)
             try:
                 await self.bot.wait_for(
                     "reaction_add",
                     timeout=10.0,
-                    check=lambda reaction, user: user == ctx.author and reaction.emoji == "🗑️",
+                    check=lambda reaction, user: user == ctx.author
+                    and reaction.message == last_msg
+                    and reaction.emoji == self.DELETE_REACTION,
                 )
             except asyncio.TimeoutError:
                 try:
-                    await last_msg.remove_reaction("🗑️", self.bot.user)
+                    await last_msg.remove_reaction(self.DELETE_REACTION, self.bot.user)
                 except discord.NotFound:
                     pass
             else:
