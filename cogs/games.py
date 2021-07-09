@@ -27,7 +27,7 @@ from aiohttp import ClientResponseError
 from discord.ext import commands
 
 from core.aionxm import NotFound
-from core.datastructures import Game
+from core.datastructures import Game, PartialGame
 
 GAME_PATH_RE = re.compile(r"(?:https?://(?:www\.)?nexusmods\.com/)?(?P<path>[a-zA-Z0-9]+)/?$")
 INCLUDE_NSFW_MODS = {0: "Never", 1: "Always", 2: "Only in NSFW channels"}
@@ -45,13 +45,13 @@ class Games(commands.Cog):
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-        self.games = {}
+        self.games: dict[str, PartialGame] = {}
         self.bot.loop.create_task(self._update_game_data())
 
     async def _add_search_task(self, ctx: commands.Context, game_query: str, channel_id=0) -> Optional[discord.Message]:
         try:
             game_path = parse_game_path(game_query)
-            game_name, game_id = await self._get_game_id_and_name(game_path)
+            game_id, game_name = await self._get_game_id_and_name(game_path)
         except (ClientResponseError, NotFound):
             return await ctx.send(f":x: Game https://www.nexusmods.com/{game_query} not found.")
 
@@ -63,16 +63,41 @@ class Games(commands.Cog):
 
             await con.insert_search_task(ctx.guild.id, channel_id, game_id)
             destination = ctx.channel.mention if channel_id else f"**{ctx.guild.name}**"
-            await ctx.send(f":white_check_mark: **{game_name}** added to games to search for in {destination}.")
+            await self._send_add_game_embed(ctx, Game(game_id, game_path, game_name), destination)
             await con.commit()
 
-    async def _get_game_id_and_name(self, game_path: str) -> tuple[int, str]:
+    async def _send_add_game_embed(self, ctx: commands.Context, game: Game, destination: str) -> None:
+        game_url = f"https://nexusmods.com/{game.path}"
+        embed = discord.Embed(
+            description=f":white_check_mark: [**{game.name}**]({game_url}) added to games to search for in {destination}.",
+            colour=self.bot.DEFAULT_COLOUR,
+        )
+        embed.set_author(
+            name=f"Nexus Mods | {game.name}",
+            url=game_url,
+            icon_url="https://images.nexusmods.com/favicons/ReskinOrange/favicon-32x32.png",
+        )
+        embed.set_thumbnail(url=f"https://staticdelivery.nexusmods.com/Images/games/4_3/tile_{game.id}.jpg")
+        if game_info := await self._get_game_info(game.id):
+            embed.add_field(name="Genre", value=game_info["genre"])
+            embed.add_field(name="Mods", value=f"{game_info['mods']:,}")
+            embed.add_field(name="Downloads", value=f"{game_info['downloads']:,}")
+        await ctx.send(embed=embed)
+
+    async def _get_game_id_and_name(self, game_path: str) -> PartialGame:
         if not (game := self.games.get(game_path)):
             await self._update_game_data()
             if not (game := self.games.get(game_path)):
                 # fallback to web scraping
                 return await self.bot.request_handler.scrape_game_id_and_name(game_path)
         return game
+
+    async def _get_game_info(self, game_id: int) -> Optional[dict]:
+        nexus_games = await self.bot.request_handler.get_all_games()
+        for game in nexus_games:
+            if game["id"] == game_id:
+                return game
+        return None
 
     async def _update_game_data(self) -> None:
         async with self.bot.db_connect() as con:
@@ -85,7 +110,7 @@ class Games(commands.Cog):
                     await con.insert_game(Game(game["id"], game["domain_name"], game["name"]))
                 await con.commit()
             for game_id, game_path, game_name in await con.fetch_games():
-                self.games[game_path] = (game_name, game_id)
+                self.games[game_path] = PartialGame(game_id, game_name)
 
     @commands.command(aliases=["nsfw"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)

@@ -27,6 +27,8 @@ from urllib.parse import quote
 
 from aiohttp import ClientSession
 
+from core.datastructures import PartialGame
+
 # Match Nexus Mods game name in HTML
 GAME_NAME_RE = re.compile(r":: (?P<game_name>.*?)\"")
 # Match Nexus Mods game ID in HTML
@@ -85,14 +87,24 @@ class RequestHandler:
 
         self.html_user_agent = f"Mozilla/5.0 (compatible; {app_name}/{app_version}{f'; +{app_url}' if app_url else ''})"
 
-    async def get_game(self, path: str) -> dict:
+    async def get_game_from_api(self, path: str) -> dict:
         """Get JSON response with data about the game with the specified `path` from the API."""
         async with self.session.get(
             f"{API_BASE_URL}games/{path}.json", headers=self.api_headers, raise_for_status=True
         ) as res:
             return await res.json()
 
-    async def get_all_games(self) -> dict:
+    async def get_games_from_api(self, include_unapproved: bool = False) -> dict:
+        """Get JSON response with data from all games from the API."""
+        async with self.session.get(
+            f"{API_BASE_URL}games.json",
+            params={"include_unapproved": str(include_unapproved).lower()},
+            headers=self.api_headers,
+            raise_for_status=True,
+        ) as res:
+            return await res.json()
+
+    async def get_all_games(self) -> list[dict]:
         """Get JSON response with data from all games from B2 file host.
 
         No API key required, but less data and more frequent errors.
@@ -103,17 +115,7 @@ class RequestHandler:
         ) as res:
             return await res.json()
 
-    async def get_games(self, include_unapproved: bool = False) -> dict:
-        """Get JSON response with data from all games from the API."""
-        async with self.session.get(
-            f"{API_BASE_URL}games.json",
-            params={"include_unapproved": str(include_unapproved).lower()},
-            headers=self.api_headers,
-            raise_for_status=True,
-        ) as res:
-            return await res.json()
-
-    async def scrape_game_id_and_name(self, path: str) -> tuple[int, str]:
+    async def scrape_game_id_and_name(self, path: str) -> PartialGame:
         """Scrape game ID and name from HTML."""
         async with self.session.get(
             f"{HTML_BASE_URL}{quote(path)}",
@@ -123,7 +125,7 @@ class RequestHandler:
             content = (await res.content.read(700)).decode("utf-8")
             id_match, name_match = GAME_ID_RE.search(content), GAME_NAME_RE.search(content)
             if id_match is not None and name_match is not None:
-                return int(id_match.group("game_id")), name_match.group("game_name")
+                return PartialGame(int(id_match.group("game_id")), name_match.group("game_name"))
 
         raise NotFound(f"Game info could not be scraped for {repr(path)}.")
 
