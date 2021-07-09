@@ -6,7 +6,7 @@ name = "pypi"
 [packages]
 aiohttp = "*"
 aiosqlite = "*"
-"discord.py" = "==1.7.0"
+"discord.py" = "==1.7.2"
 
 [dev-packages]
 black = "*"

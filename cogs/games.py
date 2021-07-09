@@ -26,17 +26,18 @@ import discord
 from aiohttp import ClientResponseError
 from discord.ext import commands
 
-from aionxm import NotFound
+from core.aionxm import NotFound
+from core.datastructures import Game
 
-GAME_DOMAIN_RE = re.compile(r"(?:https?://(?:www\.)?nexusmods\.com/)?(?P<game_dir>[a-zA-Z0-9]+)/?$")
+GAME_PATH_RE = re.compile(r"(?:https?://(?:www\.)?nexusmods\.com/)?(?P<path>[a-zA-Z0-9]+)/?$")
 INCLUDE_NSFW_MODS = {0: "Never", 1: "Always", 2: "Only in NSFW channels"}
 
 
-def parse_game_dir(game_query: str) -> str:
+def parse_game_path(game_query: str) -> str:
     """Parse game directory and return canonical name or raise `UserInputError` if invalid."""
-    if match := GAME_DOMAIN_RE.match("".join(game_query.split()).lower()):
-        return match.group("game_dir")
-    raise commands.UserInputError(f"Invalid game directory {repr(game_query)}.")
+    if match := GAME_PATH_RE.match("".join(game_query.split()).lower()):
+        return match.group("path")
+    raise commands.UserInputError(f"Invalid game path {repr(game_query)}.")
 
 
 class Games(commands.Cog):
@@ -49,8 +50,8 @@ class Games(commands.Cog):
 
     async def _add_search_task(self, ctx: commands.Context, game_query: str, channel_id=0) -> Optional[discord.Message]:
         try:
-            game_dir = parse_game_dir(game_query)
-            game_name, game_id = await self._get_game_id_and_name(game_dir)
+            game_path = parse_game_path(game_query)
+            game_name, game_id = await self._get_game_id_and_name(game_path)
         except (ClientResponseError, NotFound):
             return await ctx.send(f":x: Game https://www.nexusmods.com/{game_query} not found.")
 
@@ -65,12 +66,12 @@ class Games(commands.Cog):
             await ctx.send(f":white_check_mark: **{game_name}** added to games to search for in {destination}.")
             await con.commit()
 
-    async def _get_game_id_and_name(self, game_dir: str) -> tuple[int, str]:
-        if not (game := self.games.get(game_dir)):
+    async def _get_game_id_and_name(self, game_path: str) -> tuple[int, str]:
+        if not (game := self.games.get(game_path)):
             await self._update_game_data()
-            if not (game := self.games.get(game_dir)):
+            if not (game := self.games.get(game_path)):
                 # fallback to web scraping
-                return await self.bot.request_handler.scrape_game_id_and_name(game_dir)
+                return await self.bot.request_handler.scrape_game_id_and_name(game_path)
         return game
 
     async def _update_game_data(self) -> None:
@@ -81,10 +82,10 @@ class Games(commands.Cog):
                 pass
             else:
                 for game in nexus_games:
-                    await con.insert_game(game["id"], game["domain_name"], game["name"])
+                    await con.insert_game(Game(game["id"], game["domain_name"], game["name"]))
                 await con.commit()
-            for game_id, game_dir, game_name in await con.fetch_games():
-                self.games[game_dir] = (game_name, game_id)
+            for game_id, game_path, game_name in await con.fetch_games():
+                self.games[game_path] = (game_name, game_id)
 
     @commands.command(aliases=["nsfw"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
@@ -179,12 +180,12 @@ class Games(commands.Cog):
         await ctx.trigger_typing()
         if ctx.invoked_subcommand is None:
             if game_query := ctx.subcommand_passed:
-                game_dir = parse_game_dir(game_query)
+                game_path = parse_game_path(game_query)
                 async with self.bot.db_connect() as con:
-                    if await con.fetch_channel_has_search_task(ctx.channel.id, game_dir):
-                        await self.delgame_channel(ctx, game_query=game_dir)
+                    if await con.fetch_channel_has_search_task(ctx.channel.id, game_path):
+                        await self.delgame_channel(ctx, game_query=game_path)
                     else:
-                        await self.delgame_server(ctx, game_query=game_dir)
+                        await self.delgame_server(ctx, game_query=game_path)
             else:
                 await ctx.send(":x: No game specified.")
 
@@ -192,24 +193,24 @@ class Games(commands.Cog):
     async def delgame_server(self, ctx: commands.Context, *, game_query: str) -> None:
         """Delete a game to search mods for in the server."""
         await ctx.trigger_typing()
-        game_dir = parse_game_dir(game_query)
+        game_path = parse_game_path(game_query)
         async with self.bot.db_connect() as con:
             await con.enable_foreign_keys()
-            if game := await con.fetch_guild_search_task_game_id_and_name(ctx.guild.id, game_dir):
+            if game := await con.fetch_guild_search_task_game_id_and_name(ctx.guild.id, game_path):
                 game_id, game_name = game
                 await con.delete_search_task(ctx.guild.id, 0, game_id)
                 await con.commit()
                 await ctx.send(f":white_check_mark: **{game_name}** deleted from server games.")
             else:
-                await ctx.send(f":x: Game `{game_dir}` not found in server games.")
+                await ctx.send(f":x: Game `{game_path}` not found in server games.")
 
     @delgame.command(name="channel", aliases=["c"])
     async def delgame_channel(self, ctx: commands.Context, *, game_query: str) -> None:
         """Delete a game to search mods for in the channel."""
         await ctx.trigger_typing()
-        game_dir = parse_game_dir(game_query)
+        game_path = parse_game_path(game_query)
         async with self.bot.db_connect() as con:
-            if game := await con.fetch_channel_search_task_game_id_and_name(ctx.channel.id, game_dir):
+            if game := await con.fetch_channel_search_task_game_id_and_name(ctx.channel.id, game_path):
                 game_id, game_name = game
                 if await con.fetch_channel_has_any_other_search_tasks(ctx.channel.id, game_id):
                     await con.delete_channel_search_task(ctx.channel.id, game_id)
@@ -219,7 +220,7 @@ class Games(commands.Cog):
                 await con.commit()
                 await ctx.send(f":white_check_mark: **{game_name}** deleted from channel games.")
             else:
-                await ctx.send(f":x: Game `{game_dir}` not found in channel games.")
+                await ctx.send(f":x: Game `{game_path}` not found in channel games.")
 
     @commands.group(aliases=["reset"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)

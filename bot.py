@@ -32,10 +32,10 @@ from aiohttp import ClientSession
 from discord.ext import commands
 
 import config
-from aionxm import RequestHandler
-from storage import ModLinkBotConnection, connect
+from core.aionxm import RequestHandler
+from core.persistence import ModLinkBotConnection, connect
 
-__version__ = "0.2a6"
+__version__ = "0.2a7"
 
 
 GITHUB_URL = "https://github.com/JonathanFeenstra/discord-modlinkbot"
@@ -61,7 +61,7 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
         prefix = (await bot.get_prefix(ctx.message))[-1]
 
         embed = discord.Embed(
-            title=f"{bot.user.name} | Help",
+            title=f"modlinkbot v{__version__} | Help",
             description=self._format_description(prefix),
             colour=ctx.me.colour.value or bot.DEFAULT_COLOUR,
         )
@@ -181,7 +181,7 @@ class ModLinkBot(commands.Bot):
         print(f"{self.user.name} is ready.")
 
     async def _prepare_storage(self, con: ModLinkBotConnection) -> None:
-        await con.executefile("modlinkbot_db.ddl")
+        await con.executefile("database/modlinkbot.db.ddl")
         await con.commit()
 
         self.blocked.update(await con.fetch_blocked_ids())
@@ -232,7 +232,7 @@ class ModLinkBot(commands.Bot):
 
     def db_connect(self) -> ModLinkBotConnection:
         """Connect to the database."""
-        return connect(getattr(self.config, "database_path", "modlinkbot.db"))
+        return connect(getattr(self.config, "database_path", "database/modlinkbot.db"))
 
     def validate_guild(self, guild: discord.Guild) -> bool:
         """Check if guild and its owner are not blocked and the guild limit not exceeded."""

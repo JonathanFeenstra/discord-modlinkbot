@@ -35,7 +35,7 @@ async def get_guild_invite(guild: discord.Guild) -> Optional[str]:
             if not (invite.max_age or invite.temporary):
                 return invite.url
     if not (guild.channels and guild.me.guild_permissions.create_instant_invite):
-        return
+        return None
     channel = guild.system_channel or guild.rules_channel or guild.public_updates_channel
     if channel and channel.permissions_for(guild.me).create_instant_invite:
         try:
@@ -48,7 +48,7 @@ async def get_guild_invite(guild: discord.Guild) -> Optional[str]:
                 return (await channel.create_invite(unique=False)).url
             except (discord.HTTPException, discord.NotFound):
                 continue
-    return
+    return None
 
 
 def _prepare_serverlog_embed(guild: discord.Guild) -> discord.Embed:
@@ -79,21 +79,18 @@ class ServerLog(commands.Cog):
         self.webhook_adapter = discord.AsyncWebhookAdapter(self.bot.session)
 
     @property
-    def webhook(self) -> discord.Webhook:
+    def webhook(self) -> Optional[discord.Webhook]:
         """Server log webhook."""
-        return discord.Webhook.partial(*self.webhook_url.split("/")[-2:], adapter=self.webhook_adapter)
-
-    @property
-    def webhook_url(self) -> str:
-        """Configured server log webhook URL."""
-        return getattr(self.bot.config, "server_log_webhook_url", False)
+        if webhook_url := getattr(self.bot.config, "server_log_webhook_url", None):
+            return discord.Webhook.partial(*webhook_url.split("/")[-2:], adapter=self.webhook_adapter)
+        return None
 
     @commands.Cog.listener()
     async def on_guild_join(self, guild: discord.Guild) -> None:
         """Log bot addition when joining a valid guild."""
         if not self.bot.validate_guild(guild):
             return
-        if self.webhook_url:
+        if self.webhook is not None:
             log_entry = await self._get_bot_addition_log_entry_if_found(guild)
             await self.log_guild_addition(guild, log_entry)
         else:
@@ -104,7 +101,7 @@ class ServerLog(commands.Cog):
         """Log bot removal when leaving a valid guild."""
         if not self.bot.validate_guild(guild):
             return
-        if self.webhook_url:
+        if self.webhook is not None:
             await self.log_guild_removal(guild)
         else:
             self.bot.unload_extension("cogs.serverlog")
@@ -152,15 +149,18 @@ class ServerLog(commands.Cog):
 
     async def send_serverlog(self, embed: discord.Embed, log_author: discord.User) -> None:
         """Send server log message to the configured webhook."""
-        try:
-            await self.webhook.send(
-                embed=embed,
-                username=f"{log_author} ({log_author.id})",
-                avatar_url=log_author.avatar_url,
-            )
-        except (discord.HTTPException, discord.NotFound, discord.Forbidden) as error:
-            print(f"{error.__class__.__name__}: {error}", file=stderr)
-            traceback.print_tb(error.__traceback__)
+        if (webhook := self.webhook) is None:
+            self.bot.unload_extension("cogs.serverlog")
+        else:
+            try:
+                await webhook.send(
+                    embed=embed,
+                    username=f"{log_author} ({log_author.id})",
+                    avatar_url=log_author.avatar_url,
+                )
+            except (discord.HTTPException, discord.NotFound, discord.Forbidden) as error:
+                print(f"{error.__class__.__name__}: {error}", file=stderr)
+                traceback.print_tb(error.__traceback__)
 
 
 def setup(bot: commands.Bot) -> None:

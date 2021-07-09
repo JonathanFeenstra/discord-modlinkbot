@@ -85,10 +85,10 @@ class RequestHandler:
 
         self.html_user_agent = f"Mozilla/5.0 (compatible; {app_name}/{app_version}{f'; +{app_url}' if app_url else ''})"
 
-    async def get_game(self, game_dir: str) -> dict:
-        """Get JSON response with data about the game with the specified `game_dir` from the API."""
+    async def get_game(self, path: str) -> dict:
+        """Get JSON response with data about the game with the specified `path` from the API."""
         async with self.session.get(
-            f"{API_BASE_URL}games/{game_dir}.json", headers=self.api_headers, raise_for_status=True
+            f"{API_BASE_URL}games/{path}.json", headers=self.api_headers, raise_for_status=True
         ) as res:
             return await res.json()
 
@@ -113,10 +113,10 @@ class RequestHandler:
         ) as res:
             return await res.json()
 
-    async def scrape_game_id_and_name(self, game_dir: str) -> tuple[int, str]:
+    async def scrape_game_id_and_name(self, path: str) -> tuple[int, str]:
         """Scrape game ID and name from HTML."""
         async with self.session.get(
-            f"{HTML_BASE_URL}{quote(game_dir)}",
+            f"{HTML_BASE_URL}{quote(path)}",
             headers={"User-Agent": self.html_user_agent, "Accept": "text/html"},
             raise_for_status=True,
         ) as res:
@@ -125,7 +125,7 @@ class RequestHandler:
             if id_match is not None and name_match is not None:
                 return int(id_match.group("game_id")), name_match.group("game_name")
 
-        raise NotFound(f"Game info could not be scraped for {repr(game_dir)}.")
+        raise NotFound(f"Game info could not be scraped for {repr(path)}.")
 
     async def scrape_profile_icon_url(self, user_id: int) -> str:
         """Scrape profile icon URL for the user with the specified `user_id`."""

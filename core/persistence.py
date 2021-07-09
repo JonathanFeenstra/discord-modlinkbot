@@ -1,6 +1,6 @@
 """
-Storage
-=======
+Persistence
+===========
 
 Persistent data storage management for modlinkbot.
 
@@ -21,11 +21,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import sqlite3
 from asyncio import Lock
+from os import PathLike
 from typing import Any, Iterable, Optional, Union
 
 from aiosqlite import Connection
 from aiosqlite.context import contextmanager
 from aiosqlite.cursor import Cursor
+
+from core.datastructures import Game, PartialGame
 
 
 class AsyncDatabaseConnection(Connection):
@@ -118,13 +121,13 @@ class ChannelConnection(AsyncDatabaseConnection):
 class GameAndSearchTaskConnection(AsyncDatabaseConnection):
     """Database connection for managing game and search task data."""
 
-    async def insert_game(self, game_id: int, game_dir: str, game_name: str) -> None:
+    async def insert_game(self, game: Game) -> None:
         """Insert game into the database."""
-        await self.execute("INSERT OR IGNORE INTO game VALUES (?, ?, ?)", (game_id, game_dir, game_name))
+        await self.execute("INSERT OR IGNORE INTO game VALUES (?, ?, ?)", game)
 
-    async def fetch_games(self) -> Iterable[sqlite3.Row]:
+    async def fetch_games(self) -> Iterable[Game]:
         """Fetch all games."""
-        return await self.execute_fetchall("SELECT * FROM game")
+        return [Game(*row) for row in await self.execute_fetchall("SELECT * FROM game")]
 
     async def insert_search_task(self, guild_id: int, channel_id: int, game_id: int) -> None:
         """Insert search task into the database."""
@@ -132,11 +135,11 @@ class GameAndSearchTaskConnection(AsyncDatabaseConnection):
 
     async def fetch_search_task_count(self, guild_id: int, channel_id: int = 0) -> int:
         """Fetch search task count in the guild and channel with the specified IDs."""
-        return (
-            await self.execute_fetchone(
-                "SELECT COUNT (*) FROM search_task WHERE guild_id = ? AND channel_id = ?", (guild_id, channel_id)
-            )
-        )[0]
+        if row := await self.execute_fetchone(
+            "SELECT COUNT (*) FROM search_task WHERE guild_id = ? AND channel_id = ?", (guild_id, channel_id)
+        ):
+            return row[0]
+        return 0
 
     async def fetch_search_tasks_game_name_and_channel_id(self, guild_id: int, channel_id: int) -> Iterable[sqlite3.Row]:
         """Fetch game names and channel IDs of the search tasks in the specified guild and channel."""
@@ -148,45 +151,55 @@ class GameAndSearchTaskConnection(AsyncDatabaseConnection):
             (guild_id, channel_id),
         )
 
-    async def fetch_guild_search_task_game_id_and_name(self, guild_id: int, game_dir: str) -> Optional[sqlite3.Row]:
+    async def fetch_guild_search_task_game_id_and_name(self, guild_id: int, game_path: str) -> Optional[PartialGame]:
         """Fetch game ID and name from a guild search task."""
-        return await self.execute_fetchone(
+        if row := await self.execute_fetchone(
             """SELECT s.game_id, g.name
                FROM search_task s, game g
                ON s.game_id = g.game_id
-               WHERE guild_id = ? AND channel_id = 0 AND dir = ?""",
-            (guild_id, game_dir),
-        )
+               WHERE guild_id = ? AND channel_id = 0 AND path = ?""",
+            (guild_id, game_path),
+        ):
+            return PartialGame(*row)
+        return None
 
-    async def fetch_guild_search_tasks_game_id_and_name(self, guild_id: int) -> Iterable[sqlite3.Row]:
-        """Fetch game IDs and names for search tasks in the specified guild."""
-        return await self.execute_fetchall(
+    async def fetch_channel_search_task_game_id_and_name(self, channel_id: int, game_path: str) -> Optional[PartialGame]:
+        """Fetch game IDs and names for search task in the specified channel."""
+        if row := await self.execute_fetchone(
             """SELECT g.game_id, g.name
+               FROM search_task s, game g
+               ON s.game_id = g.game_id
+               WHERE channel_id = ? AND path = ?""",
+            (channel_id, game_path),
+        ):
+            return PartialGame(*row)
+        return None
+
+    async def fetch_guild_search_tasks_game_id_and_name(self, guild_id: int) -> Iterable[PartialGame]:
+        """Fetch game IDs and names for search tasks in the specified guild."""
+        return [
+            PartialGame(*row)
+            for row in await self.execute_fetchall(
+                """SELECT g.game_id, g.name
                FROM search_task s, game g
                ON s.game_id = g.game_id
                WHERE guild_id = ? AND channel_id = 0""",
-            (guild_id,),
-        )
+                (guild_id,),
+            )
+        ]
 
-    async def fetch_channel_search_tasks_game_id_and_name(self, channel_id: int) -> Iterable[sqlite3.Row]:
+    async def fetch_channel_search_tasks_game_id_and_name(self, channel_id: int) -> Iterable[PartialGame]:
         """Fetch game IDs and names for search tasks in the specified channel."""
-        return await self.execute_fetchall(
-            """SELECT g.game_id, g.name
+        return [
+            PartialGame(*row)
+            for row in await self.execute_fetchall(
+                """SELECT g.game_id, g.name
                FROM search_task s, game g
                ON s.game_id = g.game_id
                WHERE channel_id = ?""",
-            (channel_id,),
-        )
-
-    async def fetch_channel_search_task_game_id_and_name(self, channel_id: int, game_dir: str) -> Optional[sqlite3.Row]:
-        """Fetch game IDs and names for search tasks in the specified channel."""
-        return await self.execute_fetchone(
-            """SELECT g.game_id, g.name
-               FROM search_task s, game g
-               ON s.game_id = g.game_id
-               WHERE channel_id = ? AND dir = ?""",
-            (channel_id, game_dir),
-        )
+                (channel_id,),
+            )
+        ]
 
     async def fetch_channel_has_any_search_tasks(self, channel_id: int) -> bool:
         """Check if the specified channel has any search tasks."""
@@ -205,12 +218,12 @@ class GameAndSearchTaskConnection(AsyncDatabaseConnection):
             )
         )
 
-    async def fetch_channel_has_search_task(self, channel_id: int, game_dir: str) -> bool:
+    async def fetch_channel_has_search_task(self, channel_id: int, game_path: str) -> bool:
         """Check if the specified channel has a search task with the specified game directory."""
         return bool(
             await self.execute_fetchone(
-                "SELECT 1 FROM search_task s, game g ON s.game_id = g.game_id WHERE channel_id = ? AND dir = ?",
-                (channel_id, game_dir),
+                "SELECT 1 FROM search_task s, game g ON s.game_id = g.game_id WHERE channel_id = ? AND path = ?",
+                (channel_id, game_path),
             )
         )
 
@@ -259,9 +272,9 @@ class ModLinkBotConnection(
         return con
 
 
-def connect(path, iter_chunk_size: int = 64) -> ModLinkBotConnection:
+def connect(database: Union[str, bytes, PathLike], iter_chunk_size: int = 64) -> ModLinkBotConnection:
     """Connect to the database."""
     return ModLinkBotConnection(
-        lambda: sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES),
+        lambda: sqlite3.connect(database, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES),
         iter_chunk_size=iter_chunk_size,
     )

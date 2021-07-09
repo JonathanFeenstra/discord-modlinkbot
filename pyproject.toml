@@ -7,6 +7,7 @@ line_length = 125
 
 [tool.pylint.messages_control]
 disable = "C0330, C0326, C0111, W0212"
+ignore = "config.py"
 
 [tool.pylint.format]
 max-line-length = "125"

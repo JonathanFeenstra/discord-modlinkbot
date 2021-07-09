@@ -11,7 +11,7 @@ owner_ids = {
 }
 
 # SQLite database file location
-database_path = "modlinkbot.db"
+database_path = "database/modlinkbot.db"
 
 # Log file location
 log_path = "modlinkbot.log"
