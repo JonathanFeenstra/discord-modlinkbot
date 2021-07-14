@@ -48,7 +48,9 @@ class Games(commands.Cog):
         self.games: dict[str, PartialGame] = {}
         self.bot.loop.create_task(self._update_game_data())
 
-    async def _add_search_task(self, ctx: commands.Context, game_query: str, channel_id=0) -> Optional[discord.Message]:
+    async def _add_search_task(
+        self, ctx: commands.Context, game_query: str, channel: Optional[discord.TextChannel] = None
+    ) -> Optional[discord.Message]:
         try:
             game_path = parse_game_path(game_query)
             game_id, game_name = await self._get_game_id_and_name(game_path)
@@ -56,13 +58,14 @@ class Games(commands.Cog):
             return await ctx.send(f":x: Game https://www.nexusmods.com/{game_query} not found.")
 
         async with self.bot.db_connect() as con:
-            if await con.fetch_search_task_count(ctx.guild.id, channel_id) >= 5:
+            db_channel_id = channel.id if channel else 0
+            if await con.fetch_search_task_count(ctx.guild.id, db_channel_id) >= 5:
                 return await ctx.send(":x: Maximum of 5 games exceeded.")
-            if channel_id:
-                await con.insert_channel(channel_id, ctx.guild.id)
+            if channel is not None:
+                await con.insert_channel(channel.id, ctx.guild.id)
 
-            await con.insert_search_task(ctx.guild.id, channel_id, game_id)
-            destination = ctx.channel.mention if channel_id else f"**{ctx.guild.name}**"
+            await con.insert_search_task(ctx.guild.id, db_channel_id, game_id)
+            destination = channel.mention if channel else f"**{ctx.guild.name}**"
             await self._send_add_game_embed(ctx, Game(game_id, game_path, game_name), destination)
             await con.commit()
 
@@ -163,10 +166,10 @@ class Games(commands.Cog):
 
         Examples:
 
-        # Add Kingdom Come Deliverance to the server's default games:
-        .addgame server kingdomcomedeliverance
-        # Add Skyrim Special Edition to channel games (overrides the server's default games):
-        .addgame channel skyrimspecialedition
+        - Add Kingdom Come Deliverance to the server's default games:
+          .addgame server kingdomcomedeliverance
+        - Add Skyrim Special Edition to channel games (overrides the server's default games):
+          .addgame channel skyrimspecialedition
         """
         await ctx.trigger_typing()
         if ctx.invoked_subcommand is None:
@@ -180,8 +183,8 @@ class Games(commands.Cog):
         """Add a game to search mods for in the server using the name from the Nexus Mods URL.
 
         Example:
-        # Add Kingdom Come Deliverance to the server's default games:
-        .addgame server kingdomcomedeliverance
+        - Add Kingdom Come Deliverance to the server's default games:
+          .addgame server kingdomcomedeliverance
         """
         await ctx.trigger_typing()
         await self._add_search_task(ctx, game_query)
@@ -191,11 +194,11 @@ class Games(commands.Cog):
         """Add a game to search mods for in the channel using the name from the Nexus Mods URL.
 
         Example:
-         # Add Skyrim Special Edition to channel games (overrides the server's default games):
-        .addgame channel skyrimspecialedition
+        - Add Skyrim Special Edition to channel games (overrides the server's default games):
+          .addgame channel skyrimspecialedition
         """
         await ctx.trigger_typing()
-        await self._add_search_task(ctx, game_query, ctx.channel.id)
+        await self._add_search_task(ctx, game_query, ctx.channel)
 
     @commands.group(aliases=["dg"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)

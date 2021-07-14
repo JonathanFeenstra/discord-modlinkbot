@@ -52,7 +52,7 @@ def _find_member(name: str, members: list[discord.Member]):
 class UserOrGuildIDConverter(commands.IDConverter):
     """Converts to a `discord.User` or `dicord.Guild` ID."""
 
-    MENTION_RE = re.compile(r"<@!?([0-9]+)>$")
+    MENTION_RE = re.compile(r"<@!?([0-9]{15,20})>$")
     DISCRIMINATOR_RE = re.compile(r"#([0-9]{4})$")
 
     async def convert(self, ctx: commands.Context, argument: str) -> int:

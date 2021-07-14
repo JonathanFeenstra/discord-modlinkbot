@@ -226,7 +226,7 @@ class ModLinkBot(commands.Bot):
         guild_count = len(self.guilds)
         await self.change_presence(
             activity=discord.Activity(
-                name=f"{guild_count} server{guild_count != 1 and 's'} | .help",
+                name=f"{guild_count} server{'s' if guild_count != 1 else ''} | .help",
                 type=discord.ActivityType.watching,
             )
         )
@@ -244,8 +244,8 @@ class ModLinkBot(commands.Bot):
         )
 
     def validate_msg(self, msg: discord.Message) -> bool:
-        """Check if message is valid to be processed."""
-        return not msg.author.bot and msg.author.id not in self.blocked and isinstance(msg.guild, discord.Guild)
+        """Check if message is valid to be processed (in a server and author not blocked)."""
+        return msg.author.id not in self.blocked and isinstance(msg.guild, discord.Guild)
 
     async def get_prefix(self, msg: discord.Message) -> list[str]:
         """Check `msg` for valid command prefixes."""
@@ -277,7 +277,7 @@ class ModLinkBot(commands.Bot):
         await self._update_presence()
 
     async def on_message(self, msg: discord.Message) -> None:
-        """Process new messages that are not from bots or DMs."""
+        """Process valid new messages if the bot has permission to send messages."""
         if not self.validate_msg(msg) or not msg.channel.permissions_for(msg.guild.me).send_messages:
             return
         await self.process_commands(msg)

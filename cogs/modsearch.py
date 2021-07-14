@@ -226,7 +226,7 @@ class ModSearch(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, msg: discord.Message) -> None:
         """Check for mod search queries in valid new message and send results."""
-        if not self.bot.validate_msg(msg) or not (queries := find_queries(msg.content)):
+        if msg.author.bot or not self.bot.validate_msg(msg) or not (queries := find_queries(msg.content)):
             return
         if (ctx := await self.bot.get_context(msg)).valid or not (games := await self._get_games_to_search_for(ctx)):
             return
