@@ -223,9 +223,10 @@ class ModLinkBot(commands.Bot):
                 traceback.print_exc()
 
     async def _update_presence(self) -> None:
+        guild_count = len(self.guilds)
         await self.change_presence(
             activity=discord.Activity(
-                name=f"{'1 server' if (guild_count := len(self.guilds)) == 1 else f'{guild_count} servers'} | .help",
+                name=f"{guild_count} server{guild_count != 1 and 's'} | .help",
                 type=discord.ActivityType.watching,
             )
         )

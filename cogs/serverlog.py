@@ -27,7 +27,7 @@ import discord
 from discord.ext import commands
 
 
-async def get_guild_invite(guild: discord.Guild) -> Optional[str]:
+async def get_guild_invite_url(guild: discord.Guild) -> Optional[str]:
     """Get invite link to guild if possible."""
     if guild.me.guild_permissions.manage_guild:
         invites = await guild.invites()
@@ -37,17 +37,20 @@ async def get_guild_invite(guild: discord.Guild) -> Optional[str]:
     if not (guild.channels and guild.me.guild_permissions.create_instant_invite):
         return None
     channel = guild.system_channel or guild.rules_channel or guild.public_updates_channel
-    if channel and channel.permissions_for(guild.me).create_instant_invite:
+    if channel and (invite_url := await _get_channel_invite_url(channel)):
+        return invite_url
+    for channel in guild.channels:
+        if invite_url := await _get_channel_invite_url(channel):
+            return invite_url
+    return None
+
+
+async def _get_channel_invite_url(channel: discord.abc.GuildChannel) -> Optional[str]:
+    if channel.permissions_for(channel.guild.me).create_instant_invite:
         try:
-            return (await channel.create_invite(unique=False)).url
+            return (await channel.create_invite(unique=False, reason="modlinkbot server log")).url
         except (discord.HTTPException, discord.NotFound):
             pass
-    for channel in guild.channels:
-        if channel.permissions_for(guild.me).create_instant_invite:
-            try:
-                return (await channel.create_invite(unique=False)).url
-            except (discord.HTTPException, discord.NotFound):
-                continue
     return None
 
 
@@ -94,7 +97,7 @@ class ServerLog(commands.Cog):
             log_entry = await self._get_bot_addition_log_entry_if_found(guild)
             await self.log_guild_addition(guild, log_entry)
         else:
-            self.bot.unload_extension("cogs.serverlog")
+            self._unload()
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild) -> None:
@@ -104,7 +107,10 @@ class ServerLog(commands.Cog):
         if self.webhook is not None:
             await self.log_guild_removal(guild)
         else:
-            self.bot.unload_extension("cogs.serverlog")
+            self._unload()
+
+    def _unload(self):
+        self.bot.unload_extension("cogs.serverlog")
 
     async def _get_bot_addition_log_entry_if_found(
         self, guild: discord.Guild, max_logs_to_check=50
@@ -131,7 +137,7 @@ class ServerLog(commands.Cog):
         else:
             embed.description = f":inbox_tray: {bot_mention} has been added to {guild_string}."
 
-        if invite := await get_guild_invite(guild):
+        if invite := await get_guild_invite_url(guild):
             embed.set_author(name=guild.name, url=invite, icon_url=guild.icon_url)
             embed.add_field(name="Invite link", value=invite, inline=False)
         else:
@@ -150,7 +156,7 @@ class ServerLog(commands.Cog):
     async def send_serverlog(self, embed: discord.Embed, log_author: discord.User) -> None:
         """Send server log message to the configured webhook."""
         if (webhook := self.webhook) is None:
-            self.bot.unload_extension("cogs.serverlog")
+            self._unload()
         else:
             try:
                 await webhook.send(

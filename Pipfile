@@ -6,7 +6,8 @@ name = "pypi"
 [packages]
 aiohttp = "*"
 aiosqlite = "*"
-"discord.py" = "==1.7.2"
+"discord.py" = "==1.7.3"
+uvloop = {version = "*", markers = "sys_platform == 'linux' or sys_platform == 'darwin'"}
 
 [dev-packages]
 black = "*"
@@ -18,3 +19,6 @@ python_version = "3.9"
 
 [scripts]
 bot = "python bot.py"
+
+[pipenv]
+allow_prereleases = true

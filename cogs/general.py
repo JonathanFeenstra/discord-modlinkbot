@@ -52,9 +52,7 @@ class General(commands.Cog):
         start = time.perf_counter()
         await ctx.trigger_typing()
         end = time.perf_counter()
-        embed.description = (
-            f"**Ping:** {round((end - start) * 1000, 1)} ms\n" f"**Ws:** {round(self.bot.latency * 1000, 1)} ms"
-        )
+        embed.description = f"**Ping:** {round((end - start) * 1000, 1)} ms\n**Ws:** {round(self.bot.latency * 1000, 1)} ms"
         await ctx.send(embed=embed)
 
     @commands.command(aliases=["prefix"])
