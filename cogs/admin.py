@@ -19,12 +19,32 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-from typing import Optional
+from typing import Optional, Sequence
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, menus
 
 from core.converters import UserOrGuildIDConverter
+
+
+class ServerPageSource(menus.ListPageSource):
+    """Menu pages data source for the serverlist command."""
+
+    def __init__(self, data: Sequence[discord.Guild]) -> None:
+        super().__init__(data, per_page=30)
+
+    def format_page(self, menu: menus.Menu, page: list[discord.Guild]) -> discord.Embed:
+        """Format a page."""
+        guilds_info = ["**`Members  ` Name**"]
+        for guild in page:
+            name = discord.utils.escape_markdown(guild.name if len(guild.name) <= 48 else f"{guild.name[:45]}...")
+            guilds_info.append(f"`{f'{guild.member_count:,}': <9}` {name: <50}")
+        ctx = menu.ctx
+        return discord.Embed(
+            title=":busts_in_silhouette: Servers",
+            description="\n".join(guilds_info),
+            colour=ctx.me.colour.value or menu.bot.DEFAULT_COLOUR,
+        ).set_footer(text=f"Prompted by @{ctx.author}", icon_url=ctx.author.avatar_url)
 
 
 class Admin(commands.Cog):
@@ -116,20 +136,11 @@ class Admin(commands.Cog):
     @commands.cooldown(rate=1, per=30, type=commands.BucketType.channel)
     async def servers(self, ctx: commands.Context) -> None:
         """Send list of servers that bot is a member of."""
-        guilds_info = [f"{'Name': <32}Members"]
-
-        for guild in self.bot.guilds:
-            name = guild.name if len(guild.name) <= 30 else f"{guild.name[:27]}..."
-            guilds_info.append(f"{name: <32}{f'{guild.member_count:,}': <9}")
-
-        description = discord.utils.escape_markdown("\n".join(guilds_info))
-        embed = discord.Embed(
-            title=":busts_in_silhouette: Servers",
-            description=f"```{description if len(description) < 2048 else description[2045] + '...'}```",
-            colour=ctx.me.colour.value or self.bot.DEFAULT_COLOUR,
+        pages = menus.MenuPages(
+            source=ServerPageSource(sorted(self.bot.guilds, key=lambda guild: guild.member_count, reverse=True)),
+            clear_reactions_after=True,
         )
-        embed.set_footer(text=f"Prompted by @{ctx.author}", icon_url=ctx.author.avatar_url)
-        await ctx.send(embed=embed)
+        await pages.start(ctx)
 
     @commands.command()
     async def block(self, ctx: commands.Context, *, id_to_block: UserOrGuildIDConverter) -> Optional[discord.Message]:

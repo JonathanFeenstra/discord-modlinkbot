@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 aiohttp = ">=3.7.4"
 aiosqlite = "*"
+discord-ext-menus = {editable = true, git = "https://github.com/Rapptz/discord-ext-menus.git"}
 "discord.py" = "==1.7.3"
 uvloop = {version = "*", markers = "sys_platform == 'linux' or sys_platform == 'darwin'"}
 

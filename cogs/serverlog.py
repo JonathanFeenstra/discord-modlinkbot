@@ -62,16 +62,17 @@ def _prepare_serverlog_embed(guild: discord.Guild) -> discord.Embed:
     if description := guild.description:
         embed.add_field(name="Description", value=description, inline=False)
 
+    embed.add_field(name="ID", value=guild.id)
     embed.add_field(name="Member count", value=str(guild.member_count))
 
     if log_author := guild.owner:
-        embed.set_footer(text=f"Owner: @{log_author} ({log_author.id}) | Created at", icon_url=log_author.avatar_url)
+        embed.set_footer(text=f"Owner: @{log_author} (ID: {log_author.id}) | Created at", icon_url=log_author.avatar_url)
 
     return embed
 
 
 def _format_guild_string(guild: discord.Guild) -> str:
-    return f"**{discord.utils.escape_markdown(guild.name)}** ({guild.id})"
+    return f"**{discord.utils.escape_markdown(guild.name)}**"
 
 
 class ServerLog(commands.Cog):
@@ -161,7 +162,7 @@ class ServerLog(commands.Cog):
             try:
                 await webhook.send(
                     embed=embed,
-                    username=f"{log_author} ({log_author.id})",
+                    username=f"{log_author} (ID: {log_author.id})",
                     avatar_url=log_author.avatar_url,
                 )
             except (discord.HTTPException, discord.NotFound, discord.Forbidden) as error:

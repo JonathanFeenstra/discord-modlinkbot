@@ -35,7 +35,7 @@ import config
 from core.aionxm import RequestHandler
 from core.persistence import ModLinkBotConnection, connect
 
-__version__ = "0.2a7"
+__version__ = "0.2a8"
 
 
 GITHUB_URL = "https://github.com/JonathanFeenstra/discord-modlinkbot"
@@ -205,13 +205,12 @@ class ModLinkBot(commands.Bot):
                 await con.delete_channel(channel_id)
 
     async def _insert_valid_new_guilds(self, con: ModLinkBotConnection, old_guild_ids: Iterable[int]) -> None:
-        serverlog_cog = self.get_cog("ServerLog")
         for guild in self.guilds:
             if not self.validate_guild(guild):
                 await guild.leave()
             elif guild.id not in old_guild_ids:
                 await con.insert_guild(guild.id)
-                if serverlog_cog:
+                if serverlog_cog := self.get_cog("ServerLog"):
                     await serverlog_cog.on_guild_join(guild)
 
     def _load_extensions(self, *extensions: str) -> None:
