@@ -19,32 +19,13 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-from typing import Optional, Sequence
+from typing import Optional
 
 import discord
 from discord.ext import commands, menus
 
 from core.converters import UserOrGuildIDConverter
-
-
-class ServerPageSource(menus.ListPageSource):
-    """Menu pages data source for the serverlist command."""
-
-    def __init__(self, data: Sequence[discord.Guild]) -> None:
-        super().__init__(data, per_page=30)
-
-    def format_page(self, menu: menus.Menu, page: list[discord.Guild]) -> discord.Embed:
-        """Format a page."""
-        guilds_info = ["**`Members  ` Name**"]
-        for guild in page:
-            name = discord.utils.escape_markdown(guild.name if len(guild.name) <= 48 else f"{guild.name[:45]}...")
-            guilds_info.append(f"`{f'{guild.member_count:,}': <9}` {name: <50}")
-        ctx = menu.ctx
-        return discord.Embed(
-            title=":busts_in_silhouette: Servers",
-            description="\n".join(guilds_info),
-            colour=ctx.me.colour.value or menu.bot.DEFAULT_COLOUR,
-        ).set_footer(text=f"Prompted by @{ctx.author}", icon_url=ctx.author.avatar_url)
+from core.pagination import ServerPageSource
 
 
 class Admin(commands.Cog):

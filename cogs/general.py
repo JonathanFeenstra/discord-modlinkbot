@@ -22,7 +22,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import time
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, menus
+
+from core.pagination import BlockedPageSource, OwnerPageSource
 
 
 class General(commands.Cog):
@@ -72,27 +74,13 @@ class General(commands.Cog):
     @commands.cooldown(rate=1, per=10, type=commands.BucketType.channel)
     async def showblocked(self, ctx: commands.Context) -> None:
         """Send embed with blocked IDs."""
-        description = ", ".join(str(_id) for _id in self.bot.blocked)
-        if not description:
-            description = "No blocked IDs yet."
-        elif len(description) > 2048:
-            description = f"{description[:2045]}..."
-        embed = discord.Embed(
-            title=":stop_sign: Blocked IDs", description=description, colour=ctx.me.colour.value or self.bot.DEFAULT_COLOUR
-        )
-        await ctx.send(embed=embed)
+        await menus.MenuPages(source=BlockedPageSource(sorted(self.bot.blocked)), clear_reactions_after=True).start(ctx)
 
     @commands.command(aliases=["showadmins", "owners", "admins"])
     @commands.cooldown(rate=1, per=10, type=commands.BucketType.channel)
     async def showowners(self, ctx: commands.Context) -> None:
         """Send embed with owners."""
-        description = ", ".join(f"<@{owner_id}>" for owner_id in self.bot.owner_ids)
-        if len(description) > 2048:
-            description = f"{description[:2045]}..."
-        embed = discord.Embed(
-            title=":sunglasses: Bot owners", description=description, colour=ctx.me.colour.value or self.bot.DEFAULT_COLOUR
-        )
-        await ctx.send(embed=embed)
+        await menus.MenuPages(source=OwnerPageSource(sorted(self.bot.owner_ids)), clear_reactions_after=True).start(ctx)
 
 
 def setup(bot: commands.Bot) -> None:
