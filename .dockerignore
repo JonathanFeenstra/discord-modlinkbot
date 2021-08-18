@@ -1,0 +1,11 @@
+.github/
+.gitignore
+.pre-commit-config.yaml
+.vscode/
+__pycache__/
+config.py.example
+img/
+LICENSE
+modlinkbot.log
+pyproject.toml
+README.md

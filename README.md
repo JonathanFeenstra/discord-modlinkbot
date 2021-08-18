@@ -20,17 +20,34 @@ Detailed descriptions of commands and their usage are provided by using the `.he
 
 ## Self-hosting
 
-### Requirements
-
-- [Python](https://www.python.org/downloads/) >= 3.9
-- [pipenv](https://pipenv.pypa.io/en/stable/install/#installing-pipenv)
-
-The required Python libraries are specified in the [Pipfile](Pipfile) and can be installed using `pipenv install`.
-
 ### Configuration
 
-[Make a Discord bot account](https://discordpy.readthedocs.io/en/latest/discord.html) and [enable the server members intent](https://discordpy.readthedocs.io/en/latest/intents.html#privileged-intents). If you wish, you can use the [included icon image](https://raw.githubusercontent.com/JonathanFeenstra/discord-modlinkbot/master/img/icon.png) for your bot. Create a `config.py` file in this directory and fill it in according to the [example](config.py.example).
+[Make a Discord bot account](https://discordpy.readthedocs.io/en/latest/discord.html) and [enable the server members intent](https://discordpy.readthedocs.io/en/latest/intents.html#privileged-intents). If you wish, you can use the [included icon image](https://raw.githubusercontent.com/JonathanFeenstra/discord-modlinkbot/master/img/icon.png) for your bot. Create a `config.py` file in this directory and fill it in according to the [example](config.py.example). [Add the bot to a Discord server](https://discordpy.readthedocs.io/en/latest/discord.html#inviting-your-bot) to make use of its features.
 
-### Launch
+### Local installation
 
-Use the command `pipenv run bot` to start modlinkbot. The bot will stay online as long as the script is running. [Add the bot to a Discord server](https://discordpy.readthedocs.io/en/latest/discord.html#inviting-your-bot) to make use of its features.
+The bot requires [Python 3.9](https://www.python.org/downloads/) and the libraries specified in [Pipfile](Pipfile), which can be installed using [`pipenv`](https://pipenv.pypa.io/en/stable/install/#installing-pipenv):
+
+```sh
+pipenv install
+```
+
+Next, use the following command to start modlinkbot:
+
+```sh
+pipenv run bot
+```
+
+### Docker
+
+Alternatively, the bot can be deployed in a [Docker](https://www.docker.com/get-started) container using the provided [Dockerfile](Dockerfile). Build a Docker image:
+
+```sh
+docker build -t discord-modlinkbot .
+```
+
+Run the image:
+
+```sh
+docker run --restart on-failure discord-modlinkbot
+```
