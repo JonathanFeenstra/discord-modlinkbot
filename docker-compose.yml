@@ -1,0 +1,9 @@
+version: "3.9"
+services:
+  bot:
+    build: .
+    restart: on-failure
+    volumes: 
+      - database:/database
+volumes:
+  database:

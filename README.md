@@ -32,7 +32,7 @@ The bot requires [Python 3.9](https://www.python.org/downloads/) and the librari
 pipenv install
 ```
 
-Next, use the following command to start modlinkbot:
+The following command will start modlinkbot:
 
 ```sh
 pipenv run bot
@@ -40,14 +40,8 @@ pipenv run bot
 
 ### Docker
 
-Alternatively, the bot can be deployed in a [Docker](https://www.docker.com/get-started) container using the provided [Dockerfile](Dockerfile). Build a Docker image:
+Alternatively, the bot can be deployed in a [Docker](https://www.docker.com/get-started) container:
 
 ```sh
-docker build -t discord-modlinkbot .
-```
-
-Run the image:
-
-```sh
-docker run --restart on-failure discord-modlinkbot
+docker compose up
 ```
