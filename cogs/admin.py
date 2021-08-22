@@ -35,7 +35,7 @@ class Admin(commands.Cog):
         self.bot = bot
 
     def cog_check(self, ctx: commands.Context) -> bool:
-        """Checks if context author is a bot owner for all commands in this cog."""
+        """Check if context author is a bot owner for all commands in this cog."""
         return ctx.author.id in self.bot.owner_ids
 
     @commands.command(aliases=["loadextension"])

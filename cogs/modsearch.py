@@ -136,8 +136,11 @@ class ResultsEmbed(discord.Embed):
     def display_single_query_results(self, query_results: list[SearchResult]) -> None:
         """Fill embed with single query mod search results."""
         query = self.search_task["queries"][0]
-        self.title = f"Search results for: **{repr(self.WHITESPACE_RE.sub(' ', query))}**"
+        self._append_author_name(f"Search results for: {repr(self.WHITESPACE_RE.sub(' ', query))}")
         self._add_query_results(query, query_results)
+
+    def _append_author_name(self, text: str) -> None:
+        self._author["name"] = f"Nexus Mods | {text}"
 
     def add_result_fields(self, results: list[list[SearchResult]]) -> None:
         """Fill embed with multiple query mod search results."""
@@ -149,7 +152,7 @@ class ResultsEmbed(discord.Embed):
                 )
                 self._add_query_results(query, query_results)
         else:
-            self._author["name"] += f" | {self.search_task['games'][0][1]}"
+            self._append_author_name(self.search_task["games"][0][1])
             for query, query_results in queries_and_results:
                 self._add_query_results(query, query_results, single_game=True)
 
@@ -193,7 +196,7 @@ class ResultsEmbed(discord.Embed):
         """Display response error info in embed."""
         self.title = f"`Error {error.status}: {error.message}`"
         self.url = str(error.request_info.real_url)
-        self._author["name"] += f" | {game_name}"
+        self._append_author_name(game_name)
         self.description = (
             f"Error while searching for **{repr(self.WHITESPACE_RE.sub(' ', query))}** "
             f"| {self.GLOBAL_SEARCH_FORMAT.format(query)}"

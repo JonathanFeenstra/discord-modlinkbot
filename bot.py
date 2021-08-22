@@ -152,7 +152,7 @@ class ModLinkBot(commands.Bot):
         """Owner IDs setter, to ignore new value set in constructor of the superclass."""
 
     async def startup(self) -> None:
-        """Perform startup tasks: prepare sorage and configurations."""
+        """Perform startup tasks: prepare storage and configurations."""
         self.session = ClientSession(loop=self.loop)
         app_data = {"name": "discord-modlinkbot", "version": __version__, "url": GITHUB_URL}
         self.request_handler = RequestHandler(self.session, app_data)
