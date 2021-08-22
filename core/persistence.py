@@ -34,7 +34,7 @@ from core.datastructures import Game, PartialGame
 class AsyncDatabaseConnection(Connection):
     """Asynchronous SQLite database connection."""
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self._lock = Lock()
 
@@ -58,7 +58,7 @@ class AsyncDatabaseConnection(Connection):
         return await cursor.fetchone()
 
 
-class GuildConnection(AsyncDatabaseConnection):
+class GuildConnectionMixin(AsyncDatabaseConnection):
     """Database connection for managing guild data."""
 
     async def insert_guild(self, guild_id: int) -> None:
@@ -102,7 +102,7 @@ class GuildConnection(AsyncDatabaseConnection):
                 await self.filter_guilds(keep_guild_ids[i : i + 999])
 
 
-class ChannelConnection(AsyncDatabaseConnection):
+class ChannelConnectionMixin(AsyncDatabaseConnection):
     """Database connection for managing channel data."""
 
     async def insert_channel(self, channel_id: int, guild_id: int) -> None:
@@ -118,7 +118,7 @@ class ChannelConnection(AsyncDatabaseConnection):
         await self.execute("DELETE FROM channel WHERE channel_id = ?", (channel_id,))
 
 
-class GameAndSearchTaskConnection(AsyncDatabaseConnection):
+class GameAndSearchTaskConnectionMixin(AsyncDatabaseConnection):
     """Database connection for managing game and search task data."""
 
     async def insert_game(self, game: Game) -> None:
@@ -242,7 +242,7 @@ class GameAndSearchTaskConnection(AsyncDatabaseConnection):
         await self.execute("DELETE FROM search_task WHERE guild_id = ? AND channel_id = 0", (guild_id,))
 
 
-class BlockedConnection(AsyncDatabaseConnection):
+class BlockedConnectionMixin(AsyncDatabaseConnection):
     """Database connection for managing blocked IDs."""
 
     async def insert_blocked_id(self, blocked_id: int) -> None:
@@ -259,15 +259,16 @@ class BlockedConnection(AsyncDatabaseConnection):
 
 
 class ModLinkBotConnection(
-    GuildConnection,
-    ChannelConnection,
-    GameAndSearchTaskConnection,
-    BlockedConnection,
+    GuildConnectionMixin,
+    ChannelConnectionMixin,
+    GameAndSearchTaskConnectionMixin,
+    BlockedConnectionMixin,
 ):
     """modlinkbot's database connection."""
 
     async def __aenter__(self) -> "ModLinkBotConnection":
-        con = await self
+        con = await self  # type: ignore
+        con.row_factory = sqlite3.Row
         await con.execute("PRAGMA journal_mode = WAL")
         return con
 
@@ -275,6 +276,8 @@ class ModLinkBotConnection(
 def connect(database: Union[str, bytes, PathLike], iter_chunk_size: int = 64) -> ModLinkBotConnection:
     """Connect to the database."""
     return ModLinkBotConnection(
-        lambda: sqlite3.connect(database, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES),
+        lambda: sqlite3.connect(
+            database, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES, isolation_level=None
+        ),
         iter_chunk_size=iter_chunk_size,
     )

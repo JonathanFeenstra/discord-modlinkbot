@@ -29,7 +29,7 @@ import asyncio
 import re
 from html import unescape
 from time import perf_counter
-from typing import NamedTuple, Optional, TypedDict, Union
+from typing import Any, NamedTuple, Optional, TypedDict, Union
 from urllib.parse import quote
 
 import discord
@@ -98,7 +98,7 @@ class ResultsEmbed(discord.Embed):
     )
     WHITESPACE_RE = re.compile(r"\s+")
 
-    def __init__(self, search_task: SearchTask, **kwargs) -> None:
+    def __init__(self, search_task: SearchTask, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self.search_task = search_task
         self.set_author(
