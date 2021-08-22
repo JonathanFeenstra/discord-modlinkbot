@@ -43,5 +43,5 @@ pipenv run bot
 Alternatively, the bot can be deployed in a [Docker](https://www.docker.com/get-started) container:
 
 ```sh
-docker compose up
+docker-compose up
 ```
