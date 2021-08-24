@@ -20,12 +20,12 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import asyncio
-import platform
 import re
-from typing import Optional
+from typing import Any
 from urllib.parse import quote
 
-from aiohttp import ClientSession
+from aiohttp.client_reqrep import ClientResponse
+from aiohttp_client_cache import CachedSession
 
 from core.datastructures import PartialGame
 
@@ -44,13 +44,12 @@ STRIP_RE = re.compile(r"^[^\w]+|[^\w]+$")
 # Special patterns to replace with commas in Nexus Search queries
 SPECIAL_RE = re.compile(r"[^\w]+")
 
-API_BASE_URL = "https://api.nexusmods.com/v1/"
 HTML_BASE_URL = "https://www.nexusmods.com/"
 
 
 def parse_query(query: str) -> str:
     """Parse raw Nexus Mods search query to API query string format."""
-    return SPECIAL_RE.sub(",", STRIP_RE.sub("", query.replace("'s", "")))
+    return SPECIAL_RE.sub(",", STRIP_RE.sub("", query.replace("'s", ""))).lower()
 
 
 class NotFound(Exception):
@@ -60,55 +59,22 @@ class NotFound(Exception):
 class RequestHandler:
     """Asynchronous Nexus Mods web request handler."""
 
-    __slots__ = ("session", "api_headers", "html_user_agent")
+    __slots__ = ("session", "html_user_agent")
 
     def __init__(
         self,
-        session: ClientSession,
+        session: CachedSession,
         app_data: dict,
-        api_key: Optional[str] = None,
     ) -> None:
         self.session = session
         # https://help.nexusmods.com/article/114-api-acceptable-use-policy
         app_url = app_data.get("url")
-        self.api_headers = {
-            "Application-Version": (app_version := app_data["version"]),
-            "Application-Name": (app_name := app_data["name"]),
-            "User-Agent": (
-                f"{app_name}/{app_version} ({platform.platform()}; {platform.architecture()[0]}"
-                f"{f'; +{app_url}' if app_url else ''}) "
-                f"{platform.python_implementation()}/{platform.python_version()}"
-            ),
-            "Accept": "application/json",
-        }
-
-        if api_key is not None:
-            self.api_headers["apikey"] = api_key
-
-        self.html_user_agent = f"Mozilla/5.0 (compatible; {app_name}/{app_version}{f'; +{app_url}' if app_url else ''})"
-
-    async def get_game_from_api(self, path: str) -> dict:
-        """Get JSON response with data about the game with the specified `path` from the API."""
-        async with self.session.get(
-            f"{API_BASE_URL}games/{path}.json", headers=self.api_headers, raise_for_status=True
-        ) as res:
-            return await res.json()
-
-    async def get_games_from_api(self, include_unapproved: bool = False) -> dict:
-        """Get JSON response with data from all games from the API."""
-        async with self.session.get(
-            f"{API_BASE_URL}games.json",
-            params={"include_unapproved": str(include_unapproved).lower()},
-            headers=self.api_headers,
-            raise_for_status=True,
-        ) as res:
-            return await res.json()
+        self.html_user_agent = (
+            f"Mozilla/5.0 (compatible; {app_data['name']}/{app_data['version']}{f'; +{app_url}' if app_url else ''})"
+        )
 
     async def get_all_games(self) -> list[dict]:
-        """Get JSON response with data from all games from B2 file host.
-
-        No API key required, but less data and more frequent errors.
-        """
+        """Get JSON response with data from all Nexus Mods games."""
         async with self.session.get(
             "https://data.nexusmods.com/file/nexus-data/games.json",
             raise_for_status=True,
@@ -136,13 +102,14 @@ class RequestHandler:
             headers={"User-Agent": self.html_user_agent, "Accept": "text/html"},
             raise_for_status=True,
         ) as res:
-            try:
-                # icon URL usually appears in the 30k bytes after the first 70k bytes of HTML
-                await res.content.readexactly(70000)
-                if match := PROFILE_ICON_RE.search((await res.content.read(30000)).decode("utf-8")):
-                    return match.group("profile_icon_url")
-            except asyncio.IncompleteReadError:
-                pass
+            if isinstance(res, ClientResponse):
+                try:
+                    # icon URL usually appears in the 30k bytes after the first 70k bytes of HTML
+                    await res.content.readexactly(70000)
+                    if match := PROFILE_ICON_RE.search((await res.content.read(30000)).decode("utf-8")):
+                        return match.group("profile_icon_url")
+                except asyncio.IncompleteReadError:
+                    pass
             # if it does not, search the full web page
             if match := PROFILE_ICON_RE.search(await res.text("utf-8")):
                 return match.group("profile_icon_url")
@@ -150,19 +117,25 @@ class RequestHandler:
         raise NotFound(f"Profile icon URL for user ID {user_id} could not be scraped.")
 
     async def search_mods(
-        self, query: str, game_id: int, include_adult: bool = False, timeout: int = 15000, **params
+        self, query: str, game_id: int, include_adult: bool = False, timeout: int = 15000, **params: Any
     ) -> dict:
         """Search Nexus Mods and return JSON response."""
+        url = "https://search.nexusmods.com/mods"
+        params = {
+            "terms": parse_query(query),
+            "game_id": game_id,
+            "include_adult": str(include_adult).lower(),
+            "timeout": timeout,
+            **params,
+        }
         async with self.session.get(
-            "https://search.nexusmods.com/mods",
-            params={
-                "terms": parse_query(query),
-                "game_id": game_id,
-                "include_adult": str(include_adult).lower(),
-                "timeout": timeout,
-                **params,
-            },
+            url,
+            params=params,
             headers={"User-Agent": self.html_user_agent, "Accept": "application/json"},
             raise_for_status=True,
         ) as res:
-            return await res.json()
+            json_body = await res.json()
+        if json_body.get("total") == 0:
+            key = self.session.cache.create_key("GET", url, params=params)
+            await self.session.cache.delete(key)
+        return json_body

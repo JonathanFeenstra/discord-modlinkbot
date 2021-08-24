@@ -20,6 +20,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import re
+from contextlib import AsyncExitStack
 from typing import Optional
 
 import discord
@@ -89,7 +90,7 @@ class Games(commands.Cog):
 
     async def _get_game_id_and_name(self, game_path: str) -> PartialGame:
         if not (game := self.games.get(game_path)):
-            await self._update_game_data()
+            await self._update_game_data(ignore_cache=True)
             if not (game := self.games.get(game_path)):
                 # fallback to web scraping
                 return await self.bot.request_handler.scrape_game_id_and_name(game_path)
@@ -102,10 +103,13 @@ class Games(commands.Cog):
                 return game
         return None
 
-    async def _update_game_data(self) -> None:
+    async def _update_game_data(self, ignore_cache: bool = False) -> None:
         async with self.bot.db_connect() as con:
             try:
-                nexus_games = await self.bot.request_handler.get_all_games()
+                async with AsyncExitStack() as exit_stack:
+                    if ignore_cache:
+                        await exit_stack.enter_async_context(self.bot.session.disabled())
+                    nexus_games = await self.bot.request_handler.get_all_games()
             except ClientResponseError:
                 pass
             else:

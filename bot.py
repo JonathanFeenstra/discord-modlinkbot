@@ -22,20 +22,23 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import importlib
 import logging
 import traceback
+from datetime import timedelta
 from itertools import groupby
 from sys import stderr
 from types import ModuleType
 from typing import Iterable, Mapping, Optional
 
 import discord
-from aiohttp import ClientSession
+from aiohttp import ClientResponse
+from aiohttp_client_cache import CachedSession
+from aiohttp_client_cache.backends import SQLiteBackend
 from discord.ext import commands
 
 import config
 from core.aionxm import RequestHandler
 from core.persistence import ModLinkBotConnection, connect
 
-__version__ = "0.2a9"
+__version__ = "0.2a10"
 
 
 GITHUB_URL = "https://github.com/JonathanFeenstra/discord-modlinkbot"
@@ -68,8 +71,8 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
         embed.add_field(
             name="Links",
             value=(
-                f"[Discord Bot List](https://top.gg/bot/665861255051083806) | [GitHub]({GITHUB_URL}) | [Add to your server]"
-                f"({bot.oauth_url})"
+                f"[Discord Bot List](https://top.gg/bot/665861255051083806) | [GitHub]({GITHUB_URL})"
+                f" | [Add to your server]({bot.oauth_url})"
             ),
             inline=False,
         )
@@ -122,6 +125,8 @@ class ModLinkBot(commands.Bot):
     """Discord Bot for linking Nexus Mods search results"""
 
     DEFAULT_COLOUR = 0xDA8E35
+    session: CachedSession
+    request_handler: RequestHandler
 
     def __init__(self) -> None:
         # Placeholder until startup is complete
@@ -153,10 +158,7 @@ class ModLinkBot(commands.Bot):
 
     async def startup(self) -> None:
         """Perform startup tasks: prepare storage and configurations."""
-        self.session = ClientSession(loop=self.loop)
-        app_data = {"name": "discord-modlinkbot", "version": __version__, "url": GITHUB_URL}
-        self.request_handler = RequestHandler(self.session, app_data)
-
+        self._initialise_request_handler()
         if getattr(self.config, "server_log_webhook_url", False):
             # Load before `_update_guilds()` to log servers added while offline
             self._load_extensions("serverlog")
@@ -180,8 +182,23 @@ class ModLinkBot(commands.Bot):
         self._load_extensions("admin", "games", "general", "modsearch")
         print(f"{self.user.name} is ready.")
 
+    def _initialise_request_handler(self):
+        cache = SQLiteBackend(
+            cache_name="data/modlinkbot-cache.db",
+            urls_expire_after={
+                "nexusmods.com": timedelta(days=3),
+                "data.nexusmods.com": timedelta(days=2),
+                "search.nexusmods.com": timedelta(hours=12),
+            },
+            cache_control=False,
+        )
+        self.session = CachedSession(cache=cache, loop=self.loop)
+        self.request_handler = RequestHandler(
+            self.session, app_data={"name": "discord-modlinkbot", "version": __version__, "url": GITHUB_URL}
+        )
+
     async def _prepare_storage(self, con: ModLinkBotConnection) -> None:
-        await con.executefile("database/modlinkbot.db.ddl")
+        await con.executefile("data/modlinkbot.db.ddl")
         await con.commit()
 
         self.blocked.update(await con.fetch_blocked_ids())
@@ -232,7 +249,7 @@ class ModLinkBot(commands.Bot):
 
     def db_connect(self) -> ModLinkBotConnection:
         """Connect to the database."""
-        return connect(getattr(self.config, "database_path", "database/modlinkbot.db"))
+        return connect("data/modlinkbot.db")
 
     def validate_guild(self, guild: discord.Guild) -> bool:
         """Check if guild and its owner are not blocked and the guild limit not exceeded."""
@@ -339,14 +356,14 @@ def install_uvloop_if_found() -> None:
     except ModuleNotFoundError:
         pass
     else:
-        uvloop.install()
+        uvloop.install()  # type: ignore
 
 
 def setup_logging() -> None:
     """Setup discord.py's logger (https://discordpy.readthedocs.io/en/latest/logging.html)."""
     logger = logging.getLogger("discord")
     logger.setLevel(logging.INFO)
-    handler = logging.FileHandler(filename=getattr(config, "log_path", "modlinkbot.log"), encoding="utf-8", mode="w")
+    handler = logging.FileHandler(filename="data/modlinkbot.log", encoding="utf-8", mode="w")
     handler.setFormatter(logging.Formatter("%(asctime)s:%(levelname)s:%(name)s: %(message)s"))
     logger.addHandler(handler)
 

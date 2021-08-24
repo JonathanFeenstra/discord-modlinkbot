@@ -109,7 +109,7 @@ class ResultsEmbed(discord.Embed):
 
     def display_single_result(self, result: SearchResult, author_icon_url: str, hide_thumbnail: bool) -> None:
         """Fill embed with single mod search result."""
-        response = result.response
+        response: dict = result.response  # type: ignore
         mod = response["results"][0]
         self.set_author(
             name=f"{mod['username']} | {result.game.name}",
@@ -350,7 +350,7 @@ class ModSearch(commands.Cog):
             hide_thumbnail = embed.search_task["hide_nsfw_thumbnails"] and await self.check_if_nsfw(response)
             try:
                 author_icon_url = await self.bot.request_handler.scrape_profile_icon_url(
-                    result.response["results"][0]["user_id"]
+                    result.response["results"][0]["user_id"]  # type: ignore
                 )
             except (ClientResponseError, NotFound):
                 author_icon_url = "https://www.nexusmods.com/assets/images/default/avatar.png"

@@ -1,6 +1,6 @@
 .vscode/
 __pycache__/
 config.py
-database/modlinkbot.db
-database/modlinkbot.db-journal
-modlinkbot.log
+data/*.db
+data/*.db-*
+data/*.log
