@@ -182,7 +182,7 @@ class ModLinkBot(commands.Bot):
         self._load_extensions("admin", "games", "general", "modsearch")
         print(f"{self.user.name} is ready.")
 
-    def _initialise_request_handler(self):
+    def _initialise_request_handler(self) -> None:
         cache = SQLiteBackend(
             cache_name="data/modlinkbot-cache.db",
             urls_expire_after={

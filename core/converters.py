@@ -20,6 +20,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import re
+from typing import Optional
 
 import discord
 from discord.ext import commands
@@ -45,7 +46,7 @@ async def _query_members_using_websocket(guild: discord.Guild, name: str) -> lis
     )
 
 
-def _find_member(name: str, members: list[discord.Member]):
+def _find_member(name: str, members: list[discord.Member]) -> Optional[discord.Member]:
     return discord.utils.find(lambda m: name in (m.name, m.nick), members)
 
 

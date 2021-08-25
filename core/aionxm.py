@@ -64,7 +64,7 @@ class RequestHandler:
     def __init__(
         self,
         session: CachedSession,
-        app_data: dict,
+        app_data: dict[str, str],
     ) -> None:
         self.session = session
         # https://help.nexusmods.com/article/114-api-acceptable-use-policy

@@ -93,7 +93,7 @@ class GuildConnectionMixin(AsyncDatabaseConnection):
         """Delete guild with the specified ID from the database."""
         await self.execute("DELETE FROM guild WHERE guild_id = ?", (guild_id,))
 
-    async def filter_guilds(self, keep_guild_ids: tuple[int, ...]):
+    async def filter_guilds(self, keep_guild_ids: tuple[int, ...]) -> None:
         """Delete guilds with the specified IDs from the database."""
         if (keep_amount := len(keep_guild_ids)) < 1000:
             await self.execute(f"DELETE FROM guild WHERE guild_id NOT IN ({', '.join('?' * keep_amount)})", keep_guild_ids)

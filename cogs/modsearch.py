@@ -331,7 +331,7 @@ class ModSearch(commands.Cog):
             search_results.append(SearchResult(query=query, game=game, response=response))
         return search_results
 
-    async def _embed_results(self, embed: ResultsEmbed, results: list[list[SearchResult]]):
+    async def _embed_results(self, embed: ResultsEmbed, results: list[list[SearchResult]]) -> None:
         if len(results) == 1:
             if len(query_results := results[0]) == 1:
                 result = query_results[0]
@@ -341,7 +341,7 @@ class ModSearch(commands.Cog):
         else:
             embed.add_result_fields(results)
 
-    async def _embed_single_result(self, embed: ResultsEmbed, result: SearchResult):
+    async def _embed_single_result(self, embed: ResultsEmbed, result: SearchResult) -> None:
         if isinstance(response := result.response, ClientResponseError):
             embed.display_response_error(response, result.game.name, result.query)
         elif not response.get("results"):
