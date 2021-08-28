@@ -5,7 +5,7 @@ name = "pypi"
 
 [packages]
 aiohttp = ">=3.7.4"
-aiohttp-client-cache = "*"
+aiohttp-client-cache = "==0.5.0.dev0"
 aiosqlite = "*"
 discord-ext-menus = {editable = true, git = "https://github.com/Rapptz/discord-ext-menus.git"}
 "discord.py" = "==1.7.3"

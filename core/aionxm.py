@@ -120,22 +120,20 @@ class RequestHandler:
         self, query: str, game_id: int, include_adult: bool = False, timeout: int = 15000, **params: Any
     ) -> dict:
         """Search Nexus Mods and return JSON response."""
-        url = "https://search.nexusmods.com/mods"
-        params = {
-            "terms": parse_query(query),
-            "game_id": game_id,
-            "include_adult": str(include_adult).lower(),
-            "timeout": timeout,
-            **params,
-        }
         async with self.session.get(
-            url,
-            params=params,
+            url="https://search.nexusmods.com/mods",
+            params={
+                "terms": parse_query(query),
+                "game_id": game_id,
+                "include_adult": str(include_adult).lower(),
+                "timeout": timeout,
+                **params,
+            },
             headers={"User-Agent": self.html_user_agent, "Accept": "application/json"},
             raise_for_status=True,
         ) as res:
+            real_url = res.real_url
             json_body = await res.json()
         if json_body.get("total") == 0:
-            key = self.session.cache.create_key("GET", url, params=params)
-            await self.session.cache.delete(key)
+            await self.session.cache.delete_url(real_url)
         return json_body
