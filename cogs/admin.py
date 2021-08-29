@@ -145,13 +145,6 @@ class Admin(commands.Cog):
         else:
             await ctx.send(f":white_check_mark: ID `{blocked_id}` is no longer blocked.")
 
-    @commands.Cog.listener()
-    async def on_member_ban(self, guild: discord.Guild, user: discord.User) -> None:
-        """Block and leave guild if the bot's app owner is banned."""
-        if user.id == getattr(self.bot, "app_owner_id", None):
-            await self.bot.block(guild.id)
-            await guild.leave()
-
 
 def setup(bot: commands.Bot) -> None:
     bot.add_cog(Admin(bot))

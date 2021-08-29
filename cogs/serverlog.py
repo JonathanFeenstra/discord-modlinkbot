@@ -24,6 +24,7 @@ from sys import stderr
 from typing import Optional
 
 import discord
+from aiohttp import ClientSession
 from discord.ext import commands
 
 
@@ -78,9 +79,16 @@ def _format_guild_string(guild: discord.Guild) -> str:
 class ServerLog(commands.Cog):
     """Cog for logging the addition and removal of modlinkbot to servers."""
 
+    session: ClientSession
+    webhook_adapter: discord.AsyncWebhookAdapter
+
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
-        self.webhook_adapter = discord.AsyncWebhookAdapter(self.bot.session)
+        self.bot.loop.create_task(self._initialise_webhook_adapter())
+
+    async def _initialise_webhook_adapter(self) -> None:
+        self.session = ClientSession(loop=self.bot.loop)
+        self.webhook_adapter = discord.AsyncWebhookAdapter(self.session)
 
     @property
     def webhook(self) -> Optional[discord.Webhook]:
@@ -110,7 +118,11 @@ class ServerLog(commands.Cog):
         else:
             self._unload()
 
-    def _unload(self):
+    def cog_unload(self) -> None:
+        """Close client session when unloading the cog."""
+        self.bot.loop.create_task(self.session.close())
+
+    def _unload(self) -> None:
         self.bot.unload_extension("cogs.serverlog")
 
     async def _get_bot_addition_log_entry_if_found(
