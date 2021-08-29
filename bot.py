@@ -136,7 +136,7 @@ class ModLinkBot(commands.Bot):
             command_prefix=self.get_prefix,
             help_command=ModLinkBotHelpCommand(),
             status=discord.Status.idle,
-            intents=discord.Intents(guilds=True, members=True, bans=True, guild_messages=True, guild_reactions=True),
+            intents=discord.Intents(guilds=True, members=True, guild_messages=True, guild_reactions=True),
         )
 
         self.blocked = set()
