@@ -30,11 +30,8 @@ from discord.ext import commands
 
 async def get_guild_invite_url(guild: discord.Guild) -> Optional[str]:
     """Get invite link to guild if possible."""
-    if guild.me.guild_permissions.manage_guild:
-        invites = await guild.invites()
-        for invite in invites:
-            if not (invite.max_age or invite.temporary):
-                return invite.url
+    if guild.me.guild_permissions.manage_guild and (invite_url := await _get_existing_invite_url(guild)):
+        return invite_url
     if not (guild.channels and guild.me.guild_permissions.create_instant_invite):
         return None
     channel = guild.system_channel or guild.rules_channel or guild.public_updates_channel
@@ -44,6 +41,16 @@ async def get_guild_invite_url(guild: discord.Guild) -> Optional[str]:
         if invite_url := await _get_channel_invite_url(channel):
             return invite_url
     return None
+
+
+async def _get_existing_invite_url(guild: discord.Guild) -> Optional[str]:
+    try:
+        invites = await guild.invites()
+        for invite in invites:
+            if not (invite.max_age or invite.temporary):
+                return invite.url
+    except (discord.HTTPException, discord.Forbidden):
+        return None
 
 
 async def _get_channel_invite_url(channel: discord.abc.GuildChannel) -> Optional[str]:
