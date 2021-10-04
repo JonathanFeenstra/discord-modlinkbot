@@ -29,7 +29,6 @@ from types import ModuleType
 from typing import Iterable, Mapping, Optional
 
 import discord
-from aiohttp import ClientResponse
 from aiohttp_client_cache import CachedSession
 from aiohttp_client_cache.backends import SQLiteBackend
 from discord.ext import commands
@@ -121,8 +120,19 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
         await self.send_pages()
 
 
+class ModLinkBotContext(commands.Context):
+    """Custom invocation context for modlinkbot."""
+
+    async def trigger_typing(self) -> None:
+        """Attempt to trigger typing, abort on errors."""
+        try:
+            await super().trigger_typing()
+        except (discord.HTTPException, discord.Forbidden):
+            pass
+
+
 class ModLinkBot(commands.Bot):
-    """Discord Bot for linking Nexus Mods search results"""
+    """Discord Bot for linking Nexus Mods search results."""
 
     DEFAULT_COLOUR = 0xDA8E35
     session: CachedSession
@@ -141,6 +151,10 @@ class ModLinkBot(commands.Bot):
 
         self.blocked = set()
         self.loop.create_task(self.startup())
+
+    async def get_context(self, msg: discord.Message, *, cls=ModLinkBotContext) -> ModLinkBotContext:
+        """Get the invocation context for the message."""
+        return await super().get_context(msg, cls=cls)
 
     @property
     def config(self) -> ModuleType:
