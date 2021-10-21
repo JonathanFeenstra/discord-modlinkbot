@@ -36,7 +36,7 @@ INCLUDE_NSFW_MODS = {0: "Never", 1: "Always", 2: "Only in NSFW channels"}
 
 def parse_game_path(game_query: str) -> str:
     """Parse game directory and return canonical name or raise `UserInputError` if invalid."""
-    if match := GAME_PATH_RE.match("".join(game_query.split()).lower()):
+    if match := GAME_PATH_RE.match("".join(game_query.split())):
         return match.group("path")
     raise commands.UserInputError(f"Invalid game path {repr(game_query)}.")
 
