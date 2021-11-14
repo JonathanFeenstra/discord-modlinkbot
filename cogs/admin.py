@@ -24,6 +24,7 @@ from typing import Optional
 import discord
 from discord.ext import commands, menus
 
+from bot import ModLinkBot
 from core.converters import UserOrGuildIDConverter
 from core.pagination import ServerPageSource
 
@@ -31,7 +32,7 @@ from core.pagination import ServerPageSource
 class Admin(commands.Cog):
     """Cog for providing owner/admin-only commands."""
 
-    def __init__(self, bot: commands.Bot) -> None:
+    def __init__(self, bot: ModLinkBot) -> None:
         self.bot = bot
 
     def cog_check(self, ctx: commands.Context) -> bool:
@@ -146,5 +147,5 @@ class Admin(commands.Cog):
             await ctx.send(f":white_check_mark: ID `{blocked_id}` is no longer blocked.")
 
 
-def setup(bot: commands.Bot) -> None:
+def setup(bot: ModLinkBot) -> None:
     bot.add_cog(Admin(bot))

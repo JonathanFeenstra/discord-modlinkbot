@@ -21,11 +21,14 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import traceback
 from sys import stderr
-from typing import Optional
+from typing import Optional, Union
 
 import discord
 from aiohttp import ClientSession
 from discord.ext import commands
+
+from bot import ModLinkBot
+from core.constants import DEFAULT_AVATAR_URL, DEFAULT_COLOUR
 
 
 async def get_guild_invite_url(guild: discord.Guild) -> Optional[str]:
@@ -64,7 +67,7 @@ async def _get_channel_invite_url(channel: discord.abc.GuildChannel) -> Optional
 
 def _prepare_serverlog_embed(guild: discord.Guild) -> discord.Embed:
     embed = discord.Embed()
-    embed.set_thumbnail(url=guild.banner_url)
+    embed.set_thumbnail(url=getattr(guild.banner, "url", discord.Embed.Empty))
     embed.timestamp = guild.created_at
 
     if description := guild.description:
@@ -74,7 +77,10 @@ def _prepare_serverlog_embed(guild: discord.Guild) -> discord.Embed:
     embed.add_field(name="Member count", value=str(guild.member_count))
 
     if log_author := guild.owner:
-        embed.set_footer(text=f"Owner: @{log_author} (ID: {log_author.id}) | Created at", icon_url=log_author.avatar_url)
+        embed.set_footer(
+            text=f"Owner: @{log_author} (ID: {log_author.id}) | Created at",
+            icon_url=getattr(log_author.avatar, "url", DEFAULT_AVATAR_URL),
+        )
 
     return embed
 
@@ -87,21 +93,20 @@ class ServerLog(commands.Cog):
     """Cog for logging the addition and removal of modlinkbot to servers."""
 
     session: ClientSession
-    webhook_adapter: discord.AsyncWebhookAdapter
 
-    def __init__(self, bot: commands.Bot) -> None:
+    def __init__(self, bot: ModLinkBot) -> None:
         self.bot = bot
-        self.bot.loop.create_task(self._initialise_webhook_adapter())
+        # `self.bot.session` is a `CachedSession`, which does not work well with webhooks.
+        self.bot.loop.create_task(self._create_client_session())
 
-    async def _initialise_webhook_adapter(self) -> None:
+    async def _create_client_session(self) -> None:
         self.session = ClientSession(loop=self.bot.loop)
-        self.webhook_adapter = discord.AsyncWebhookAdapter(self.session)
 
     @property
     def webhook(self) -> Optional[discord.Webhook]:
         """Server log webhook."""
         if webhook_url := getattr(self.bot.config, "server_log_webhook_url", None):
-            return discord.Webhook.partial(*webhook_url.split("/")[-2:], adapter=self.webhook_adapter)
+            return discord.Webhook.from_url(webhook_url, session=self.session)
         return None
 
     @commands.Cog.listener()
@@ -145,7 +150,7 @@ class ServerLog(commands.Cog):
     async def log_guild_addition(self, guild: discord.Guild, log_entry: Optional[discord.AuditLogEntry] = None) -> None:
         """Send webhook log message when guild joins."""
         embed = _prepare_serverlog_embed(guild)
-        embed.colour = guild.me.colour.value or self.bot.DEFAULT_COLOUR
+        embed.colour = guild.me.colour.value or DEFAULT_COLOUR
 
         guild_string = _format_guild_string(guild)
         bot_mention = guild.me.mention
@@ -157,11 +162,12 @@ class ServerLog(commands.Cog):
         else:
             embed.description = f":inbox_tray: {bot_mention} has been added to {guild_string}."
 
+        guild_icon_url = getattr(guild.icon, "url", None)
         if invite := await get_guild_invite_url(guild):
-            embed.set_author(name=guild.name, url=invite, icon_url=guild.icon_url)
+            embed.set_author(name=guild.name, url=invite, icon_url=guild_icon_url)
             embed.add_field(name="Invite link", value=invite, inline=False)
         else:
-            embed.set_author(name=guild.name, icon_url=guild.icon_url)
+            embed.set_author(name=guild.name, icon_url=guild_icon_url)
 
         await self.send_serverlog(embed, log_author)
 
@@ -169,11 +175,13 @@ class ServerLog(commands.Cog):
         """Send webhook log message when guild leaves."""
         embed = _prepare_serverlog_embed(guild)
         embed.description = f":outbox_tray: {self.bot.user.mention} has been removed from {_format_guild_string(guild)}."
-        embed.colour = self.bot.DEFAULT_COLOUR
-        embed.set_author(name=guild.name, icon_url=guild.icon_url)
+        embed.colour = DEFAULT_COLOUR
+        embed.set_author(name=guild.name, icon_url=getattr(guild.icon, "url", None))
         await self.send_serverlog(embed, guild.owner or self.bot.user)
 
-    async def send_serverlog(self, embed: discord.Embed, log_author: discord.User) -> None:
+    async def send_serverlog(
+        self, embed: discord.Embed, log_author: Union[discord.ClientUser, discord.User, discord.Member]
+    ) -> None:
         """Send server log message to the configured webhook."""
         if (webhook := self.webhook) is None:
             self._unload()
@@ -182,12 +190,12 @@ class ServerLog(commands.Cog):
                 await webhook.send(
                     embed=embed,
                     username=f"{log_author} (ID: {log_author.id})",
-                    avatar_url=log_author.avatar_url,
+                    avatar_url=getattr(log_author.avatar, "url", DEFAULT_AVATAR_URL),
                 )
             except (discord.HTTPException, discord.NotFound, discord.Forbidden) as error:
                 print(f"{error.__class__.__name__}: {error}", file=stderr)
                 traceback.print_tb(error.__traceback__)
 
 
-def setup(bot: commands.Bot) -> None:
+def setup(bot: ModLinkBot) -> None:
     bot.add_cog(ServerLog(bot))

@@ -22,7 +22,9 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import Sequence
 
 import discord
-from discord.ext import menus
+from discord.ext import commands, menus
+
+from core.constants import DEFAULT_COLOUR
 
 
 class ServerPageSource(menus.ListPageSource):
@@ -41,8 +43,8 @@ class ServerPageSource(menus.ListPageSource):
         return discord.Embed(
             title=":busts_in_silhouette: Servers",
             description="\n".join(guilds_info),
-            colour=ctx.me.colour.value or menu.bot.DEFAULT_COLOUR,
-        ).set_footer(text=f"Prompted by @{ctx.author}", icon_url=ctx.author.avatar_url)
+            colour=ctx.me.colour.value or DEFAULT_COLOUR,
+        ).set_footer(text=f"Prompted by @{ctx.author}", icon_url=ctx.author.avatar.url)
 
 
 class OwnerPageSource(menus.ListPageSource):
@@ -56,7 +58,7 @@ class OwnerPageSource(menus.ListPageSource):
         return discord.Embed(
             title=":sunglasses: Bot owners",
             description=", ".join(f"<@{owner_id}>" for owner_id in page),
-            colour=menu.ctx.me.colour.value or menu.bot.DEFAULT_COLOUR,
+            colour=menu.ctx.me.colour.value or DEFAULT_COLOUR,
         )
 
 
@@ -71,5 +73,5 @@ class BlockedPageSource(menus.ListPageSource):
         return discord.Embed(
             title=":stop_sign: Blocked IDs",
             description=", ".join(str(_id) for _id in page) or "No blocked IDs yet.",
-            colour=menu.ctx.me.colour.value or menu.bot.DEFAULT_COLOUR,
+            colour=menu.ctx.me.colour.value or DEFAULT_COLOUR,
         )

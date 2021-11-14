@@ -24,13 +24,15 @@ import time
 import discord
 from discord.ext import commands, menus
 
+from bot import ModLinkBot
+from core.constants import DEFAULT_COLOUR
 from core.pagination import BlockedPageSource, OwnerPageSource
 
 
 class General(commands.Cog):
     """Cog to enable general utility commands."""
 
-    def __init__(self, bot: commands.Bot) -> None:
+    def __init__(self, bot: ModLinkBot) -> None:
         self.bot = bot
 
     @commands.command()
@@ -42,7 +44,7 @@ class General(commands.Cog):
             description=f"Use [this link]({self.bot.oauth_url}) to add {modlinkbot.mention} to your server. "
             "The permissions 'Create Invite' and 'View Audit Log' are optional. Use `.help addgame` for info about setting "
             "up search tasks.",
-            colour=modlinkbot.colour.value or self.bot.DEFAULT_COLOUR,
+            colour=modlinkbot.colour.value or DEFAULT_COLOUR,
         )
         await ctx.send(embed=embed)
 
@@ -50,7 +52,7 @@ class General(commands.Cog):
     @commands.cooldown(rate=1, per=3, type=commands.BucketType.channel)
     async def ping(self, ctx: commands.Context) -> None:
         """Send latency in ms."""
-        embed = discord.Embed(title=":satellite: Ping", colour=ctx.me.colour.value or self.bot.DEFAULT_COLOUR)
+        embed = discord.Embed(title=":satellite: Ping", colour=ctx.me.colour.value or DEFAULT_COLOUR)
         start = time.perf_counter()
         await ctx.trigger_typing()
         end = time.perf_counter()
@@ -83,5 +85,5 @@ class General(commands.Cog):
         await menus.MenuPages(source=OwnerPageSource(sorted(self.bot.owner_ids)), clear_reactions_after=True).start(ctx)
 
 
-def setup(bot: commands.Bot) -> None:
+def setup(bot: ModLinkBot) -> None:
     bot.add_cog(General(bot))

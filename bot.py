@@ -23,118 +23,26 @@ import importlib
 import logging
 import traceback
 from datetime import timedelta
-from itertools import groupby
 from sys import stderr
 from types import ModuleType
-from typing import Iterable, Mapping, Optional
+from typing import Iterable
 
 import discord
-from aiohttp_client_cache import CachedSession
-from aiohttp_client_cache.backends import SQLiteBackend
+from aiohttp_client_cache import CachedSession, SQLiteBackend
 from discord.ext import commands
 
 import config
 from core.aionxm import RequestHandler
+from core.constants import GITHUB_URL
+from core.help import ModLinkBotHelpCommand
 from core.persistence import ModLinkBotConnection, connect
 
-__version__ = "0.2a10"
-
-
-GITHUB_URL = "https://github.com/JonathanFeenstra/discord-modlinkbot"
-
-
-class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
-    """Help command for modlinkbot."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.description = (
-            "Configure a server or channel to retrieve search results from [Nexus Mods](https://www.nexusmods.com/) for "
-            "search queries in messages {between braces, separated by commas}, 3 to 100 characters in length, outside of "
-            "any [Discord markdown](https://support.discord.com/hc/en-us/articles/210298617) or ||[spoiler tags]"
-            "(https://support.discord.com/hc/en-us/articles/360022320632)||. Queries cannot contain any of the following "
-            'characters: ``\\";:=*%$&_<>?`[]{}``.'
-        )
-
-    async def send_bot_help(self, mapping: Mapping[Optional[commands.Cog], list[commands.Command]]) -> None:
-        """Send help embed for when no help arguments are specified."""
-        ctx = self.context
-        bot = ctx.bot
-        prefix = (await bot.get_prefix(ctx.message))[-1]
-
-        embed = discord.Embed(
-            title=f"modlinkbot v{__version__} | Help",
-            description=self._format_description(prefix),
-            colour=ctx.me.colour.value or bot.DEFAULT_COLOUR,
-        )
-        embed.add_field(
-            name="Links",
-            value=(
-                f"[Discord Bot List](https://top.gg/bot/665861255051083806) | [GitHub]({GITHUB_URL})"
-                f" | [Add to your server]({bot.oauth_url})"
-            ),
-            inline=False,
-        )
-        embed.set_footer(text=f"Prompted by @{ctx.author}", icon_url=ctx.author.avatar_url)
-
-        await ctx.send(embed=embed)
-        await self._send_commands_info(prefix)
-
-    def _format_description(self, prefix: str) -> str:
-        description = [self.description]
-
-        if self.context.bot.get_cog("Games"):
-            description.append(f"Use `{prefix}help addgame` for info about configuring games to search Nexus Mods for. ")
-        else:
-            description.append(
-                "**Important:** Load the Games extension to enable search configuration settings using "
-                f"`{prefix}load games` (can only be done by bot owners)."
-            )
-        if not self.context.bot.get_cog("ModSearch"):
-            description.append(
-                f"**Important:** Load the ModSearch extension to enable Nexus Mods search using `{prefix}load modsearch` "
-                "(can only be done by bot owners)."
-            )
-
-        return "\n\n".join(description)
-
-    async def _send_commands_info(self, prefix: str) -> None:
-        self.paginator.add_line(f"Commands (prefix = {repr(prefix)})", empty=True)
-
-        def get_category(command: commands.Command) -> str:
-            """Get command category (cog)."""
-            return f"{command.cog.qualified_name}:" if command.cog is not None else "Help:"
-
-        max_size = self.get_max_size(
-            filtered := await self.filter_commands(self.context.bot.commands, sort=True, key=get_category)
-        )
-
-        for category, cmds in groupby(filtered, key=get_category):
-            self.add_indented_commands(sorted(cmds, key=lambda c: c.name), heading=category, max_size=max_size)
-
-        self.paginator.add_line()
-        self.paginator.add_line(
-            f"Type {prefix}help command for more info on a command.\n"
-            f"Type {prefix}help category for more info on a category."
-        )
-        await self.send_pages()
-
-
-class ModLinkBotContext(commands.Context):
-    """Custom invocation context for modlinkbot."""
-
-    async def trigger_typing(self) -> None:
-        """Attempt to trigger typing, abort on errors."""
-        try:
-            await super().trigger_typing()
-        except (discord.HTTPException, discord.Forbidden):
-            pass
+__version__ = "0.2a11"
 
 
 class ModLinkBot(commands.Bot):
     """Discord Bot for linking Nexus Mods search results."""
 
-    DEFAULT_COLOUR = 0xDA8E35
     session: CachedSession
     request_handler: RequestHandler
 
@@ -144,17 +52,13 @@ class ModLinkBot(commands.Bot):
 
         super().__init__(
             command_prefix=self.get_prefix,
-            help_command=ModLinkBotHelpCommand(),
+            help_command=ModLinkBotHelpCommand(__version__),
             status=discord.Status.idle,
             intents=discord.Intents(guilds=True, members=True, guild_messages=True, guild_reactions=True),
         )
 
         self.blocked = set()
         self.loop.create_task(self.startup())
-
-    async def get_context(self, msg: discord.Message, *, cls=ModLinkBotContext) -> ModLinkBotContext:
-        """Get the invocation context for the message."""
-        return await super().get_context(msg, cls=cls)
 
     @property
     def config(self) -> ModuleType:
@@ -208,7 +112,12 @@ class ModLinkBot(commands.Bot):
         )
         self.session = CachedSession(cache=cache, loop=self.loop)
         self.request_handler = RequestHandler(
-            self.session, app_data={"name": "discord-modlinkbot", "version": __version__, "url": GITHUB_URL}
+            self.session,
+            app_data={
+                "name": "discord-modlinkbot",
+                "version": __version__,
+                "url": GITHUB_URL,
+            },
         )
 
     async def _prepare_storage(self, con: ModLinkBotConnection) -> None:

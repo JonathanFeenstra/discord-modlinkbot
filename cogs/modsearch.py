@@ -36,7 +36,9 @@ import discord
 from aiohttp import ClientResponseError
 from discord.ext import commands
 
+from bot import ModLinkBot
 from core.aionxm import NotFound, parse_query
+from core.constants import DEFAULT_COLOUR
 from core.datastructures import PartialGame
 
 # Match text {between braces} excluding specific characters (";:=*%$&_<>?`[])
@@ -199,7 +201,7 @@ class ResultsEmbed(discord.Embed):
         self._append_author_name(game_name)
         self.description = (
             f"Error while searching for **{repr(self.WHITESPACE_RE.sub(' ', query))}** "
-            f"| {self.GLOBAL_SEARCH_FORMAT.format(query)}"
+            f"| {self.GLOBAL_SEARCH_FORMAT.format(quote(query))}"
         )
 
     def to_dict(self) -> dict:
@@ -223,7 +225,7 @@ class ModSearch(commands.Cog):
 
     DELETE_REACTION = "🗑️"
 
-    def __init__(self, bot: commands.Bot) -> None:
+    def __init__(self, bot: ModLinkBot) -> None:
         self.bot = bot
 
     @commands.Cog.listener()
@@ -297,7 +299,7 @@ class ModSearch(commands.Cog):
             embed = ResultsEmbed(
                 search_task,
                 description=":mag_right: Searching mods...",
-                colour=self.bot.DEFAULT_COLOUR,
+                colour=DEFAULT_COLOUR,
             )
             result_messages.append(msg := await ctx.channel.send(embed=embed))
             await self._update_embed_with_results(embed, ctx.author)
@@ -392,5 +394,5 @@ class ModSearch(commands.Cog):
                         pass
 
 
-def setup(bot: commands.Bot) -> None:
+def setup(bot: ModLinkBot) -> None:
     bot.add_cog(ModSearch(bot))

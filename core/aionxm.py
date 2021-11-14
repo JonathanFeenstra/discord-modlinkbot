@@ -25,7 +25,7 @@ from typing import Any
 from urllib.parse import quote
 
 from aiohttp.client_reqrep import ClientResponse
-from aiohttp_client_cache import CachedSession
+from aiohttp_client_cache.session import CachedSession
 
 from core.datastructures import PartialGame
 

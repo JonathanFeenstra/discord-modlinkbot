@@ -27,7 +27,9 @@ import discord
 from aiohttp import ClientResponseError
 from discord.ext import commands
 
+from bot import ModLinkBot
 from core.aionxm import NotFound
+from core.constants import DEFAULT_COLOUR
 from core.datastructures import Game, PartialGame
 
 GAME_PATH_RE = re.compile(r"(?:https?://(?:www\.)?nexusmods\.com/)?(?P<path>[a-zA-Z0-9]+)/?$")
@@ -44,7 +46,7 @@ def parse_game_path(game_query: str) -> str:
 class Games(commands.Cog):
     """Cog to manage game configurations per server/channel."""
 
-    def __init__(self, bot: commands.Bot) -> None:
+    def __init__(self, bot: ModLinkBot) -> None:
         self.bot = bot
         self.games: dict[str, PartialGame] = {}
         self.bot.loop.create_task(self._update_game_data())
@@ -74,7 +76,7 @@ class Games(commands.Cog):
         game_url = f"https://nexusmods.com/{game.path}"
         embed = discord.Embed(
             description=f":white_check_mark: [**{game.name}**]({game_url}) added to games to search for in {destination}.",
-            colour=self.bot.DEFAULT_COLOUR,
+            colour=DEFAULT_COLOUR,
         )
         embed.set_author(
             name=f"Nexus Mods | {game.name}",
@@ -135,7 +137,7 @@ class Games(commands.Cog):
     @commands.command(aliases=["games"])
     async def showgames(self, ctx: commands.Context) -> None:
         """List configured Nexus Mods games to search mods for in server/channel."""
-        embed = discord.Embed(colour=self.bot.DEFAULT_COLOUR)
+        embed = discord.Embed(colour=DEFAULT_COLOUR)
         embed.set_author(
             name="Nexus Mods Search Configuration",
             url="https://www.nexusmods.com/",
@@ -291,5 +293,5 @@ class Games(commands.Cog):
         await ctx.send(":white_check_mark: Channel games cleared.")
 
 
-def setup(bot: commands.Bot) -> None:
+def setup(bot: ModLinkBot) -> None:
     bot.add_cog(Games(bot))
