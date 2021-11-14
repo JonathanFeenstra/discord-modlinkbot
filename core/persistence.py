@@ -73,9 +73,9 @@ class GuildConnectionMixin(AsyncDatabaseConnection):
         """Set the NSFW flag of the guild with the specified ID."""
         await self.execute("UPDATE guild SET nsfw = ? WHERE guild_id = ?", (nsfw, guild_id))
 
-    async def fetch_guild_ids(self) -> Iterable[int]:
+    async def fetch_guild_ids(self) -> tuple[int, ...]:
         """Fetch all guild IDs."""
-        return (row[0] for row in await self.execute_fetchall("SELECT guild_id FROM guild"))
+        return tuple(row[0] for row in await self.execute_fetchall("SELECT guild_id FROM guild"))
 
     async def fetch_guild_prefix(self, guild_id: int) -> Optional[str]:
         """Fetch the prefix of the guild with the specified ID."""

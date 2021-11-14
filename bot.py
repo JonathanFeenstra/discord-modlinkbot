@@ -77,13 +77,15 @@ class ModLinkBot(commands.Bot):
     async def startup(self) -> None:
         """Perform startup tasks: prepare storage and configurations."""
         self._initialise_request_handler()
-        if getattr(self.config, "server_log_webhook_url", False):
-            # Load before `_update_guilds()` to log servers added while offline
-            self._load_extensions("serverlog")
 
         async with self.db_connect() as con:
             await self._prepare_storage(con)
             await self.wait_until_ready()
+
+            self._load_extensions("admin", "games", "general", "modsearch")
+            if getattr(self.config, "server_log_webhook_url", False):
+                self._load_extensions("serverlog")
+
             await self._update_guilds(con)
 
         self.oauth_url = discord.utils.oauth_url(
@@ -97,7 +99,6 @@ class ModLinkBot(commands.Bot):
                 add_reactions=True,
             ),
         )
-        self._load_extensions("admin", "games", "general", "modsearch")
         print(f"{self.user.name} is ready.")
 
     def _initialise_request_handler(self) -> None:

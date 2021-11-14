@@ -74,7 +74,8 @@ def _prepare_serverlog_embed(guild: discord.Guild) -> discord.Embed:
         embed.add_field(name="Description", value=description, inline=False)
 
     embed.add_field(name="ID", value=guild.id)
-    embed.add_field(name="Member count", value=str(guild.member_count))
+    embed.add_field(name="Member count", value=str(getattr(guild, "member_count", len(guild.members))))
+    embed.add_field(name="Bot count", value=str(len(tuple(filter(lambda m: m.bot, guild.members)))))
 
     if log_author := guild.owner:
         embed.set_footer(
@@ -162,7 +163,7 @@ class ServerLog(commands.Cog):
         else:
             embed.description = f":inbox_tray: {bot_mention} has been added to {guild_string}."
 
-        guild_icon_url = getattr(guild.icon, "url", None)
+        guild_icon_url = getattr(guild.icon, "url", discord.Embed.Empty)
         if invite := await get_guild_invite_url(guild):
             embed.set_author(name=guild.name, url=invite, icon_url=guild_icon_url)
             embed.add_field(name="Invite link", value=invite, inline=False)
@@ -176,7 +177,7 @@ class ServerLog(commands.Cog):
         embed = _prepare_serverlog_embed(guild)
         embed.description = f":outbox_tray: {self.bot.user.mention} has been removed from {_format_guild_string(guild)}."
         embed.colour = DEFAULT_COLOUR
-        embed.set_author(name=guild.name, icon_url=getattr(guild.icon, "url", None))
+        embed.set_author(name=guild.name, icon_url=getattr(guild.icon, "url", discord.Embed.Empty))
         await self.send_serverlog(embed, guild.owner or self.bot.user)
 
     async def send_serverlog(
