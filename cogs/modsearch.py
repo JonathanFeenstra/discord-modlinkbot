@@ -277,12 +277,13 @@ class ModSearch(commands.Cog):
         ):
             return await ctx.send(f":x: Too many queries in message (max={max_queries}).")
         nsfw_flag = await self._get_nsfw_flag(ctx.guild.id)
-        include_adult = nsfw_flag == 1 or (nsfw_flag == 2 and ctx.channel.nsfw)
+        nsfw_channel = ctx.channel.nsfw if isinstance(ctx.channel, discord.TextChannel) else ctx.channel.parent.nsfw
+        include_adult = nsfw_flag == 1 or (nsfw_flag == 2 and nsfw_channel)
         search_task = SearchTask(
             queries=queries,
             games=games,
             include_adult=include_adult,
-            hide_nsfw_thumbnails=include_adult and not ctx.channel.nsfw,
+            hide_nsfw_thumbnails=include_adult and not nsfw_channel,
         )
         await self.distribute_results(ctx, search_task, queries_per_msg)
 
