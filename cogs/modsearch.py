@@ -49,8 +49,8 @@ MARKDOWN_RE = re.compile(
         r"```.*?```"  # ```multiline code```
         r"|`.*?`"  # `inline code`
         r"|^>\s.*?$"  # > quote
-        r"|\*{3}(?!\s).*?(?<!\s)\*{3}"  # ***bold italics***
-        r"|\*\*(?!\s).*?(?<!\s)\*\*"  # **bold**
+        r"|\*{3}.*?\*{3}"  # ***bold italics***
+        r"|\*\*.*?\*\*"  # **bold**
         r"|\*(?!\s).*?(?<!\s)\*"  # *italics*
         r"|__.*?__"  # __underline__
         r"|~~.*?~~"  # ~~strikethrough~~
