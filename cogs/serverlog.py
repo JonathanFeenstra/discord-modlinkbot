@@ -4,7 +4,7 @@ ServerLog
 
 Extension for logging the addition and removal of modlinkbot to servers.
 
-Copyright (C) 2019-2021 Jonathan Feenstra
+Copyright (C) 2019-2022 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -67,7 +67,7 @@ async def _get_channel_invite_url(channel: discord.abc.GuildChannel) -> Optional
 
 def _prepare_serverlog_embed(guild: discord.Guild) -> discord.Embed:
     embed = discord.Embed()
-    embed.set_thumbnail(url=getattr(guild.banner, "url", discord.Embed.Empty))
+    embed.set_thumbnail(url=getattr(guild.banner, "url", None))
     embed.timestamp = guild.created_at
 
     if description := guild.description:
@@ -119,7 +119,7 @@ class ServerLog(commands.Cog):
             log_entry = await self._get_bot_addition_log_entry_if_found(guild)
             await self.log_guild_addition(guild, log_entry)
         else:
-            self._unload()
+            await self._unload()
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild) -> None:
@@ -129,14 +129,14 @@ class ServerLog(commands.Cog):
         if self.webhook is not None:
             await self.log_guild_removal(guild)
         else:
-            self._unload()
+            await self._unload()
 
-    def cog_unload(self) -> None:
+    async def cog_unload(self) -> None:
         """Close client session when unloading the cog."""
-        self.bot.loop.create_task(self.session.close())
+        await self.session.close()
 
-    def _unload(self) -> None:
-        self.bot.unload_extension("cogs.serverlog")
+    async def _unload(self) -> None:
+        await self.bot.unload_extension("cogs.serverlog")
 
     async def _get_bot_addition_log_entry_if_found(
         self, guild: discord.Guild, max_logs_to_check=50
@@ -163,7 +163,7 @@ class ServerLog(commands.Cog):
         else:
             embed.description = f":inbox_tray: {bot_mention} has been added to {guild_string}."
 
-        guild_icon_url = getattr(guild.icon, "url", discord.Embed.Empty)
+        guild_icon_url = getattr(guild.icon, "url", None)
         if invite := await get_guild_invite_url(guild):
             embed.set_author(name=guild.name, url=invite, icon_url=guild_icon_url)
             embed.add_field(name="Invite link", value=invite, inline=False)
@@ -177,7 +177,7 @@ class ServerLog(commands.Cog):
         embed = _prepare_serverlog_embed(guild)
         embed.description = f":outbox_tray: {self.bot.user.mention} has been removed from {_format_guild_string(guild)}."
         embed.colour = DEFAULT_COLOUR
-        embed.set_author(name=guild.name, icon_url=getattr(guild.icon, "url", discord.Embed.Empty))
+        embed.set_author(name=guild.name, icon_url=getattr(guild.icon, "url", None))
         await self.send_serverlog(embed, guild.owner or self.bot.user)
 
     async def send_serverlog(
@@ -185,7 +185,7 @@ class ServerLog(commands.Cog):
     ) -> None:
         """Send server log message to the configured webhook."""
         if (webhook := self.webhook) is None:
-            self._unload()
+            await self._unload()
         else:
             try:
                 await webhook.send(
@@ -198,5 +198,5 @@ class ServerLog(commands.Cog):
                 traceback.print_tb(error.__traceback__)
 
 
-def setup(bot: ModLinkBot) -> None:
-    bot.add_cog(ServerLog(bot))
+async def setup(bot: ModLinkBot) -> None:
+    await bot.add_cog(ServerLog(bot))

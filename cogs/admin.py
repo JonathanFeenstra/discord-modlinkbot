@@ -4,7 +4,7 @@ Admin
 
 Extension for providing bot owner/admin-only commands.
 
-Copyright (C) 2019-2021 Jonathan Feenstra
+Copyright (C) 2019-2022 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -51,7 +51,7 @@ class Admin(commands.Cog):
         - serverlog
         """
         try:
-            self.bot.load_extension(f"cogs.{extension}")
+            await self.bot.load_extension(f"cogs.{extension}")
         except commands.ExtensionError as error:
             await ctx.send(f":x: `{error.__class__.__name__}: {error}`")
         else:
@@ -61,9 +61,10 @@ class Admin(commands.Cog):
     async def unload(self, ctx: commands.Context, *, extension: str) -> None:
         """Unload extension."""
         if extension == "admin":
-            return await ctx.send(":x: Admin extension cannot be unloaded.")
+            await ctx.send(":x: Admin extension cannot be unloaded.")
+            return
         try:
-            self.bot.unload_extension(f"cogs.{extension}")
+            await self.bot.unload_extension(f"cogs.{extension}")
         except commands.ExtensionError as error:
             await ctx.send(f":x: `{error.__class__.__name__}: {error}`")
         else:
@@ -73,7 +74,7 @@ class Admin(commands.Cog):
     async def reload(self, ctx: commands.Context, *, extension: str) -> None:
         """Reload extension."""
         try:
-            self.bot.reload_extension(f"cogs.{extension}")
+            await self.bot.reload_extension(f"cogs.{extension}")
         except commands.ExtensionError as error:
             await ctx.send(f":x: `{error.__class__.__name__}: {error}`")
         else:
@@ -147,5 +148,5 @@ class Admin(commands.Cog):
             await ctx.send(f":white_check_mark: ID `{blocked_id}` is no longer blocked.")
 
 
-def setup(bot: ModLinkBot) -> None:
-    bot.add_cog(Admin(bot))
+async def setup(bot: ModLinkBot) -> None:
+    await bot.add_cog(Admin(bot))

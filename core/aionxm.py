@@ -4,7 +4,7 @@ AIONXM
 
 Asynchronous Nexus Mods request handling.
 
-Copyright (C) 2019-2021 Jonathan Feenstra
+Copyright (C) 2019-2022 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -40,7 +40,7 @@ PROFILE_ICON_RE = re.compile(
 )
 
 # Leading/trailing characters to remove from Nexus Search queries
-STRIP_RE = re.compile(r"^[^\w]+|[^\w]+$")
+STRIP_RE = re.compile(r"^(?:[^\w]+|[^\w]+)$")
 # Special patterns to replace with commas in Nexus Search queries
 SPECIAL_RE = re.compile(r"[^\w]+")
 

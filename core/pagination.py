@@ -4,7 +4,7 @@ Pagination
 
 Pagination for modlinkbot using discord-ext-menus.
 
-Copyright (C) 2019-2021 Jonathan Feenstra
+Copyright (C) 2019-2022 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -22,7 +22,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from typing import Sequence
 
 import discord
-from discord.ext import commands, menus
+from discord.ext import menus
 
 from core.constants import DEFAULT_COLOUR
 

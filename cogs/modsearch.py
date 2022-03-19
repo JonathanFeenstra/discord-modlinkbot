@@ -10,7 +10,7 @@ Functionality based on:
 - Nexus Mods Discord Bot quicksearch:
   https://github.com/Nexus-Mods/discord-bot/
 
-Copyright (C) 2019-2021 Jonathan Feenstra
+Copyright (C) 2019-2022 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -308,7 +308,7 @@ class ModSearch(commands.Cog):
         await self._add_reaction_to_delete_messages(ctx, result_messages)
 
     async def _update_embed_with_results(self, embed: ResultsEmbed, searcher: Union[str, discord.User]) -> None:
-        embed.description = discord.Embed.Empty
+        embed.description = None
         start_time = perf_counter()
         results = await self._collect_modsearch_results(embed.search_task)
         end_time = perf_counter()
@@ -395,5 +395,5 @@ class ModSearch(commands.Cog):
                         pass
 
 
-def setup(bot: ModLinkBot) -> None:
-    bot.add_cog(ModSearch(bot))
+async def setup(bot: ModLinkBot) -> None:
+    await bot.add_cog(ModSearch(bot))

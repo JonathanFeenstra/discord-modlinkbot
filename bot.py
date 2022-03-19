@@ -4,7 +4,7 @@ discord-modlinkbot
 
 A Discord bot for linking Nexus Mods search results.
 
-Copyright (C) 2019-2021 Jonathan Feenstra
+Copyright (C) 2019-2022 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -19,6 +19,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+import asyncio
 import importlib
 import logging
 import traceback
@@ -37,7 +38,7 @@ from core.constants import GITHUB_URL
 from core.help import ModLinkBotHelpCommand
 from core.persistence import ModLinkBotConnection, connect
 
-__version__ = "0.2a11"
+__version__ = "0.3a1"
 
 
 class ModLinkBot(commands.Bot):
@@ -49,15 +50,18 @@ class ModLinkBot(commands.Bot):
     def __init__(self) -> None:
         # Placeholder until startup is complete
         self.app_owner_id = 0
-
         super().__init__(
             command_prefix=self.get_prefix,
             help_command=ModLinkBotHelpCommand(__version__),
             status=discord.Status.idle,
-            intents=discord.Intents(guilds=True, members=True, guild_messages=True, guild_reactions=True),
+            intents=discord.Intents(
+                guilds=True, members=True, message_content=True, guild_messages=True, guild_reactions=True
+            ),
         )
-
         self.blocked = set()
+
+    async def setup_hook(self) -> None:
+        """Called after the bot is logged in, but before connecting to the websocket."""
         self.loop.create_task(self.startup())
 
     @property
@@ -82,14 +86,14 @@ class ModLinkBot(commands.Bot):
             await self._prepare_storage(con)
             await self.wait_until_ready()
 
-            self._load_extensions("admin", "games", "general", "modsearch")
+            await self._load_extensions("admin", "games", "general", "modsearch")
             if getattr(self.config, "server_log_webhook_url", False):
-                self._load_extensions("serverlog")
+                await self._load_extensions("serverlog")
 
             await self._update_guilds(con)
 
         self.oauth_url = discord.utils.oauth_url(
-            self.user.id,
+            self.user.id,  # type: ignore - user should not be None after startup
             permissions=discord.Permissions(
                 view_audit_log=True,
                 create_instant_invite=True,
@@ -99,7 +103,7 @@ class ModLinkBot(commands.Bot):
                 add_reactions=True,
             ),
         )
-        print(f"{self.user.name} is ready.")
+        print(f"{self.user.name} is ready.")  # type: ignore
 
     def _initialise_request_handler(self) -> None:
         cache = SQLiteBackend(
@@ -152,12 +156,12 @@ class ModLinkBot(commands.Bot):
             elif guild.id not in old_guild_ids:
                 await con.insert_guild(guild.id)
                 if serverlog_cog := self.get_cog("ServerLog"):
-                    await serverlog_cog.on_guild_join(guild)
+                    await serverlog_cog.on_guild_join(guild)  # type: ignore - ServerLog.on_guild_join is a known method
 
-    def _load_extensions(self, *extensions: str) -> None:
+    async def _load_extensions(self, *extensions: str) -> None:
         for extension in extensions:
             try:
-                self.load_extension(f"cogs.{extension}")
+                await self.load_extension(f"cogs.{extension}")
             except commands.ExtensionError as error:
                 print(f"Failed to load extension {extension}: {error}", file=stderr)
                 traceback.print_exc()
@@ -263,7 +267,7 @@ class ModLinkBot(commands.Bot):
             await ctx.send(f":x: {ctx.author.mention} Command on cooldown. Try again after {round(error.retry_after, 1)} s.")
         else:
             if isinstance(error, discord.HTTPException):
-                print(f"In {ctx.command.qualified_name}:", file=stderr)
+                print(f"In {ctx.command.qualified_name}:", file=stderr)  # type: ignore - command is not None
             print(f"{error.__class__.__name__}: {error}", file=stderr)
             traceback.print_tb(error.__traceback__)
 
@@ -280,7 +284,7 @@ def install_uvloop_if_found() -> None:
     except ModuleNotFoundError:
         pass
     else:
-        uvloop.install()  # type: ignore
+        uvloop.install()  # type: ignore - install is a known function in uvloop
 
 
 def setup_logging() -> None:
@@ -292,13 +296,16 @@ def setup_logging() -> None:
     logger.addHandler(handler)
 
 
-def main() -> None:
+bot = ModLinkBot()
+
+
+async def main() -> None:
     print("Starting...")
     install_uvloop_if_found()
     setup_logging()
-    modlinkbot = ModLinkBot()
-    modlinkbot.run(config.token)
+    async with bot:
+        await bot.start(config.token)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

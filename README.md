@@ -22,7 +22,7 @@ Detailed descriptions of commands and their usage are provided by using the `.he
 
 ### Configuration
 
-[Make a Discord bot account](https://discordpy.readthedocs.io/en/latest/discord.html) and [enable the server members intent](https://discordpy.readthedocs.io/en/latest/intents.html#privileged-intents). If you wish, you can use the [included icon image](https://raw.githubusercontent.com/JonathanFeenstra/discord-modlinkbot/master/img/icon.png) for your bot. Create a `config.py` file in this directory and fill it in according to the [example](config.py.example). [Add the bot to a Discord server](https://discordpy.readthedocs.io/en/latest/discord.html#inviting-your-bot) to make use of its features.
+[Make a Discord bot account](https://discordpy.readthedocs.io/en/latest/discord.html) and [enable the server members and message content intents](https://discordpy.readthedocs.io/en/latest/intents.html#privileged-intents). If you wish, you can use the [included icon image](https://raw.githubusercontent.com/JonathanFeenstra/discord-modlinkbot/master/img/icon.png) for your bot. Create a `config.py` file in this directory and fill it in according to the [example](config.py.example). [Add the bot to a Discord server](https://discordpy.readthedocs.io/en/latest/discord.html#inviting-your-bot) to make use of its features.
 
 ### Local installation
 

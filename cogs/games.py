@@ -4,7 +4,7 @@ Games
 
 Extension for management of server/channel-specific game configurations.
 
-Copyright (C) 2019-2021 Jonathan Feenstra
+Copyright (C) 2019-2022 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -49,7 +49,10 @@ class Games(commands.Cog):
     def __init__(self, bot: ModLinkBot) -> None:
         self.bot = bot
         self.games: dict[str, PartialGame] = {}
-        self.bot.loop.create_task(self._update_game_data())
+
+    async def cog_load(self) -> None:
+        """Called whent the cog gets loaded."""
+        await self._update_game_data()
 
     async def _add_search_task(
         self, ctx: commands.Context, game_query: str, channel: Optional[discord.TextChannel] = None
@@ -293,5 +296,5 @@ class Games(commands.Cog):
         await ctx.send(":white_check_mark: Channel games cleared.")
 
 
-def setup(bot: ModLinkBot) -> None:
-    bot.add_cog(Games(bot))
+async def setup(bot: ModLinkBot) -> None:
+    await bot.add_cog(Games(bot))

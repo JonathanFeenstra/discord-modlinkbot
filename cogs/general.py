@@ -4,7 +4,7 @@ General
 
 Extension with general utilities.
 
-Copyright (C) 2019-2021 Jonathan Feenstra
+Copyright (C) 2019-2022 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -85,5 +85,5 @@ class General(commands.Cog):
         await menus.MenuPages(source=OwnerPageSource(sorted(self.bot.owner_ids)), clear_reactions_after=True).start(ctx)
 
 
-def setup(bot: ModLinkBot) -> None:
-    bot.add_cog(General(bot))
+async def setup(bot: ModLinkBot) -> None:
+    await bot.add_cog(General(bot))

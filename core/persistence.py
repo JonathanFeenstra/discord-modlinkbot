@@ -4,7 +4,7 @@ Persistence
 
 Persistent data storage management for modlinkbot.
 
-Copyright (C) 2019-2021 Jonathan Feenstra
+Copyright (C) 2019-2022 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -50,7 +50,7 @@ class AsyncDatabaseConnection(Connection):
                 return await self.executescript(script.read())
 
     @contextmanager
-    async def execute_fetchone(self, sql: str, parameters: Iterable[Any] = None) -> Optional[sqlite3.Row]:
+    async def execute_fetchone(self, sql: str, parameters: Optional[Iterable[Any]] = None) -> Optional[sqlite3.Row]:
         """Helper to execute a query and return a single row."""
         if parameters is None:
             parameters = []
