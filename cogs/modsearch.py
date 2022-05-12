@@ -27,7 +27,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import asyncio
 import re
-from html import unescape
 from time import perf_counter
 from typing import Any, NamedTuple, Optional, TypedDict, Union
 from urllib.parse import quote
@@ -118,7 +117,7 @@ class ResultsEmbed(discord.Embed):
             url=f"https://www.nexusmods.com/users/{mod['user_id']}",
             icon_url=author_icon_url,
         )
-        if len(mod_name := unescape(mod["name"])) > 128:
+        if len(mod_name := mod["name"]) > 128:
             mod_name = f"{mod_name[:125]}..."
         self.title = mod_name
         self.url = f"https://nexusmods.com{mod['url']}"
@@ -170,7 +169,7 @@ class ResultsEmbed(discord.Embed):
         if isinstance(response := result.response, ClientResponseError):
             return self.add_response_error_field(response, result.game.name, result.query)
         mod = response["results"][0]
-        if len(mod_name := unescape(mod["name"])) > 128:
+        if len(mod_name := mod["name"]) > 128:
             mod_name = f"{mod_name[:125]}..."
         result_hyperlinks = f"[{mod_name}](https://nexusmods.com{mod['url']})"
         if (total := response["total"]) > 1:
@@ -363,7 +362,7 @@ class ModSearch(commands.Cog):
         """Check if `response` has an NSFW mod as first result."""
         mod = response["results"][0]
         try:
-            check = await self.bot.request_handler.search_mods(unescape(mod["name"]), mod["game_id"], False)
+            check = await self.bot.request_handler.search_mods(mod["name"], mod["game_id"], False)
         except ClientResponseError:
             return True
         if check.get("results"):
