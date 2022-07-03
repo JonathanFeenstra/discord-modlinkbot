@@ -1,8 +1,8 @@
 """
-DataStructures
-==============
+Models
+======
 
-Common data structures for modlinkbot.
+Common models for modlinkbot.
 
 Copyright (C) 2019-2022 Jonathan Feenstra
 

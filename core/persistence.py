@@ -28,7 +28,7 @@ from aiosqlite import Connection
 from aiosqlite.context import contextmanager
 from aiosqlite.cursor import Cursor
 
-from core.datastructures import Game, PartialGame
+from core.models import Game, PartialGame
 
 
 class AsyncDatabaseConnection(Connection):
@@ -125,6 +125,12 @@ class GameAndSearchTaskConnectionMixin(AsyncDatabaseConnection):
         """Insert game into the database."""
         await self.execute("INSERT OR IGNORE INTO game VALUES (?, ?, ?)", game)
 
+    async def fetch_partial_game(self, game_path: str) -> Optional[PartialGame]:
+        """Fetch partial game with the specified ID."""
+        if row := await self.execute_fetchone("SELECT game_id, name FROM game WHERE path = ?", (game_path,)):
+            return PartialGame(*row)
+        return None
+
     async def fetch_games(self) -> Iterable[Game]:
         """Fetch all games."""
         return [Game(*row) for row in await self.execute_fetchall("SELECT * FROM game")]
@@ -151,8 +157,8 @@ class GameAndSearchTaskConnectionMixin(AsyncDatabaseConnection):
             (guild_id, channel_id),
         )
 
-    async def fetch_guild_search_task_game_id_and_name(self, guild_id: int, game_path: str) -> Optional[PartialGame]:
-        """Fetch game ID and name from a guild search task."""
+    async def fetch_guild_partial_game(self, guild_id: int, game_path: str) -> Optional[PartialGame]:
+        """Fetch a partial game from a guild search task."""
         if row := await self.execute_fetchone(
             """SELECT s.game_id, g.name
                FROM search_task s, game g
@@ -163,8 +169,8 @@ class GameAndSearchTaskConnectionMixin(AsyncDatabaseConnection):
             return PartialGame(*row)
         return None
 
-    async def fetch_channel_search_task_game_id_and_name(self, channel_id: int, game_path: str) -> Optional[PartialGame]:
-        """Fetch game IDs and names for search task in the specified channel."""
+    async def fetch_channel_partial_game(self, channel_id: int, game_path: str) -> Optional[PartialGame]:
+        """Fetch a partial game from a channel search task."""
         if row := await self.execute_fetchone(
             """SELECT g.game_id, g.name
                FROM search_task s, game g
@@ -175,8 +181,8 @@ class GameAndSearchTaskConnectionMixin(AsyncDatabaseConnection):
             return PartialGame(*row)
         return None
 
-    async def fetch_guild_search_tasks_game_id_and_name(self, guild_id: int) -> Iterable[PartialGame]:
-        """Fetch game IDs and names for search tasks in the specified guild."""
+    async def fetch_guild_partial_games(self, guild_id: int) -> Iterable[PartialGame]:
+        """Fetch partial games from all search tasks in the specified guild."""
         return [
             PartialGame(*row)
             for row in await self.execute_fetchall(
@@ -188,12 +194,38 @@ class GameAndSearchTaskConnectionMixin(AsyncDatabaseConnection):
             )
         ]
 
-    async def fetch_channel_search_tasks_game_id_and_name(self, channel_id: int) -> Iterable[PartialGame]:
+    async def fetch_channel_partial_games(self, channel_id: int) -> Iterable[PartialGame]:
         """Fetch game IDs and names for search tasks in the specified channel."""
         return [
             PartialGame(*row)
             for row in await self.execute_fetchall(
                 """SELECT g.game_id, g.name
+               FROM search_task s, game g
+               ON s.game_id = g.game_id
+               WHERE channel_id = ?""",
+                (channel_id,),
+            )
+        ]
+
+    async def fetch_guild_games(self, guild_id: int) -> Iterable[Game]:
+        """Fetch games from all search tasks in the specified guild."""
+        return [
+            Game(*row)
+            for row in await self.execute_fetchall(
+                """SELECT g.game_id, g.path, g.name
+               FROM search_task s, game g
+               ON s.game_id = g.game_id
+               WHERE guild_id = ? AND channel_id = 0""",
+                (guild_id,),
+            )
+        ]
+
+    async def fetch_channel_games(self, channel_id: int) -> Iterable[Game]:
+        """Fetch games from all search tasks in the specified channel."""
+        return [
+            Game(*row)
+            for row in await self.execute_fetchall(
+                """SELECT g.game_id, g.path, g.name
                FROM search_task s, game g
                ON s.game_id = g.game_id
                WHERE channel_id = ?""",

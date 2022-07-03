@@ -19,7 +19,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-from typing import Sequence
+from typing import List, Sequence
 
 import discord
 from discord.ext import menus
@@ -33,7 +33,7 @@ class ServerPageSource(menus.ListPageSource):
     def __init__(self, data: Sequence[discord.Guild]) -> None:
         super().__init__(data, per_page=30)
 
-    def format_page(self, menu: menus.Menu, page: list[discord.Guild]) -> discord.Embed:
+    def format_page(self, menu: menus.Menu, page: List[discord.Guild]) -> discord.Embed:
         """Format a page with server member counts and names."""
         guilds_info = ["**`Members  ` Name**"]
         for guild in page:
@@ -44,7 +44,7 @@ class ServerPageSource(menus.ListPageSource):
             title=":busts_in_silhouette: Servers",
             description="\n".join(guilds_info),
             colour=ctx.me.colour.value or DEFAULT_COLOUR,
-        ).set_footer(text=f"Prompted by @{ctx.author}", icon_url=ctx.author.avatar.url)
+        ).set_footer(text=f"Prompted by @{ctx.author}", icon_url=ctx.author.display_avatar.url)
 
 
 class OwnerPageSource(menus.ListPageSource):
@@ -53,7 +53,7 @@ class OwnerPageSource(menus.ListPageSource):
     def __init__(self, data: Sequence[int]) -> None:
         super().__init__(data, per_page=50)
 
-    def format_page(self, menu: menus.Menu, page: list[int]) -> discord.Embed:
+    def format_page(self, menu: menus.Menu, page: List[int]) -> discord.Embed:
         """Format a page with bot owner user mentions."""
         return discord.Embed(
             title=":sunglasses: Bot owners",
@@ -68,7 +68,7 @@ class BlockedPageSource(menus.ListPageSource):
     def __init__(self, data: Sequence[int]) -> None:
         super().__init__(data, per_page=50)
 
-    def format_page(self, menu: menus.Menu, page: list[int]) -> discord.Embed:
+    def format_page(self, menu: menus.Menu, page: List[int]) -> discord.Embed:
         """Format a page with blocked IDs."""
         return discord.Embed(
             title=":stop_sign: Blocked IDs",

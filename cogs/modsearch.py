@@ -28,17 +28,18 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import asyncio
 import re
 from time import perf_counter
-from typing import Any, NamedTuple, Optional, TypedDict, Union
+from typing import Any, Dict, List, NamedTuple, Optional, TypedDict, Union
 from urllib.parse import quote
 
 import discord
 from aiohttp import ClientResponseError
+from discord import app_commands
 from discord.ext import commands
 
 from bot import ModLinkBot
 from core.aionxm import NotFound, parse_query
 from core.constants import DEFAULT_COLOUR
-from core.datastructures import PartialGame
+from core.models import PartialGame
 
 # Match text {between braces} excluding specific characters (";:=*%$&_<>?`[])
 SEARCH_QUERIES_RE = re.compile(r"{([^\";:=\*%\$&_<>\?`\[\]{]*?)}", re.DOTALL)
@@ -59,7 +60,7 @@ MARKDOWN_RE = re.compile(
 )
 
 
-def find_queries(text: str) -> list[str]:
+def find_queries(text: str) -> List[str]:
     """Find unique Nexus Mods search queries in unformatted parts of text."""
     return list(
         dict.fromkeys(
@@ -74,8 +75,8 @@ def find_queries(text: str) -> list[str]:
 class SearchTask(TypedDict):
     """Nexus Mods search task."""
 
-    queries: list[str]
-    games: list[PartialGame]
+    queries: List[str]
+    games: List[PartialGame]
     include_adult: bool
     hide_nsfw_thumbnails: bool
 
@@ -85,7 +86,7 @@ class SearchResult(NamedTuple):
 
     query: str
     game: PartialGame
-    response: Union[dict, ClientResponseError]
+    response: Union[Dict, ClientResponseError]
 
 
 class ResultsEmbed(discord.Embed):
@@ -110,7 +111,7 @@ class ResultsEmbed(discord.Embed):
 
     def display_single_result(self, result: SearchResult, author_icon_url: str, hide_thumbnail: bool) -> None:
         """Fill embed with single mod search result."""
-        response: dict = result.response  # type: ignore
+        response: Dict = result.response  # type: ignore
         mod = response["results"][0]
         self.set_author(
             name=f"{mod['username']} | {result.game.name}",
@@ -134,7 +135,7 @@ class ResultsEmbed(discord.Embed):
         self.add_field(name="Downloads", value=f"{mod['downloads']:,}")
         self.add_field(name="Endorsements", value=f"{mod['endorsements']:,}")
 
-    def display_single_query_results(self, query_results: list[SearchResult]) -> None:
+    def display_single_query_results(self, query_results: List[SearchResult]) -> None:
         """Fill embed with single query mod search results."""
         query = self.search_task["queries"][0]
         self._append_author_name(f"Search results for: {repr(self.WHITESPACE_RE.sub(' ', query))}")
@@ -143,7 +144,7 @@ class ResultsEmbed(discord.Embed):
     def _append_author_name(self, text: str) -> None:
         self._author["name"] = f"Nexus Mods | {text}"
 
-    def add_result_fields(self, results: list[list[SearchResult]]) -> None:
+    def add_result_fields(self, results: List[List[SearchResult]]) -> None:
         """Fill embed with multiple query mod search results."""
         queries_and_results = zip(self.search_task["queries"], results)
         if len(self.search_task["games"]) > 1:
@@ -157,7 +158,7 @@ class ResultsEmbed(discord.Embed):
             for query, query_results in queries_and_results:
                 self._add_query_results(query, query_results, single_game=True)
 
-    def _add_query_results(self, query: str, query_results: list[SearchResult], single_game: bool = False) -> None:
+    def _add_query_results(self, query: str, query_results: List[SearchResult], single_game: bool = False) -> None:
         if not query_results:
             self.add_no_results_field(query, f"No results for: {repr(query)}." if single_game else "No results.")
         else:
@@ -203,7 +204,7 @@ class ResultsEmbed(discord.Embed):
             f"| {self.GLOBAL_SEARCH_FORMAT.format(quote(query))}"
         )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> Dict:
         """Converts this embed object into a dict. Overridden from `discord.Embed` to use `super().__slots__`."""
         result = {key[1:]: getattr(self, key) for key in super().__slots__ if key[0] == "_" and hasattr(self, key)}
 
@@ -248,28 +249,45 @@ class ModSearch(commands.Cog):
         if before.content != after.content and after == after.channel.last_message:
             await self.on_message(after)
 
-    @commands.command(aliases=["search", "modsearch"])
+    @commands.hybrid_command(aliases=["search", "modsearch"])
     @commands.has_permissions(embed_links=True)
-    async def nexus(self, ctx: commands.Context, *, query_text: str) -> None:
+    async def nexus(self, ctx: commands.Context, *, query_text: str, game_path: Optional[str] = None) -> None:
         """Search for query on Nexus Mods."""
-        if not (games := await self._get_games_to_search_for(ctx)):
+        games = []
+        if game_path is not None:
+            async with self.bot.db_connect() as con:
+                if (game := await con.fetch_partial_game(game_path)) is None:
+                    await ctx.send(":x: Game not found.")
+                    return
+                games.append(game)
+        if not games and not (games := await self._get_games_to_search_for(ctx)):
             await ctx.send(":x: No search filters configured.")
         elif queries := find_queries(f"{{{query_text}}}"):
             await self.send_nexus_results(ctx, queries, games)
         else:
             await ctx.send(":x: Invalid query.")
 
-    async def _get_games_to_search_for(self, ctx: commands.Context) -> list[PartialGame]:
+    @nexus.autocomplete("game_path")
+    async def _game_path_autocomplete(
+        self, interaction: discord.Interaction, current: str
+    ) -> List[app_commands.Choice[str]]:
+        current_lower = current.lower()
         async with self.bot.db_connect() as con:
-            return await con.fetch_channel_search_tasks_game_id_and_name(
-                ctx.channel.id
-            ) or await con.fetch_guild_search_tasks_game_id_and_name(ctx.guild.id)
+            return [
+                app_commands.Choice(name=game.name, value=game.path)
+                for game in await con.fetch_games()
+                if current_lower in game.name.lower() or current_lower in game.path or current_lower in str(game.id)
+            ][:25]
+
+    async def _get_games_to_search_for(self, ctx: commands.Context) -> List[PartialGame]:
+        async with self.bot.db_connect() as con:
+            return await con.fetch_channel_partial_games(ctx.channel.id) or await con.fetch_guild_partial_games(ctx.guild.id)
 
     async def send_nexus_results(
-        self, ctx: commands.Context, queries: list[str], games: list[PartialGame]
+        self, ctx: commands.Context, queries: List[str], games: List[PartialGame]
     ) -> Optional[discord.Message]:
         """Send Nexus Mods results for the specified queries and games."""
-        await ctx.trigger_typing()
+        await ctx.typing()
         if len(queries) > (
             max_queries := getattr(self.bot.config, "max_messages_per_search", 3)
             * (queries_per_msg := 25 // (len(games) + 1))
@@ -301,7 +319,7 @@ class ModSearch(commands.Cog):
                 description=":mag_right: Searching mods...",
                 colour=DEFAULT_COLOUR,
             )
-            result_messages.append(msg := await ctx.channel.send(embed=embed))
+            result_messages.append(msg := await ctx.send(embed=embed))
             await self._update_embed_with_results(embed, ctx.author)
             await msg.edit(embed=embed)
         await self._add_reaction_to_delete_messages(ctx, result_messages)
@@ -314,14 +332,14 @@ class ModSearch(commands.Cog):
         await self._embed_results(embed, results)
         embed.set_footer(text=f"Searched by @{searcher} | Took: {round(end_time - start_time, 2)} s")
 
-    async def _collect_modsearch_results(self, search_task: SearchTask) -> list[list[SearchResult]]:
+    async def _collect_modsearch_results(self, search_task: SearchTask) -> List[List[SearchResult]]:
         results = []
         for query in search_task["queries"]:
             query_results = await self._search_mods_for_query(query, search_task["games"], search_task["include_adult"])
             results.append(query_results)
         return results
 
-    async def _search_mods_for_query(self, query: str, games: list[PartialGame], include_adult: bool) -> list[SearchResult]:
+    async def _search_mods_for_query(self, query: str, games: List[PartialGame], include_adult: bool) -> List[SearchResult]:
         search_results = []
         for game in games:
             try:
@@ -333,7 +351,7 @@ class ModSearch(commands.Cog):
             search_results.append(SearchResult(query=query, game=game, response=response))
         return search_results
 
-    async def _embed_results(self, embed: ResultsEmbed, results: list[list[SearchResult]]) -> None:
+    async def _embed_results(self, embed: ResultsEmbed, results: List[List[SearchResult]]) -> None:
         if len(results) == 1:
             if len(query_results := results[0]) == 1:
                 result = query_results[0]
@@ -358,7 +376,7 @@ class ModSearch(commands.Cog):
                 author_icon_url = "https://www.nexusmods.com/assets/images/default/avatar.png"
             embed.display_single_result(result, author_icon_url, hide_thumbnail)
 
-    async def check_if_nsfw(self, response: dict) -> bool:
+    async def check_if_nsfw(self, response: Dict) -> bool:
         """Check if `response` has an NSFW mod as first result."""
         mod = response["results"][0]
         try:
@@ -369,7 +387,7 @@ class ModSearch(commands.Cog):
             return check["results"][0]["mod_id"] != mod["mod_id"]
         return True
 
-    async def _add_reaction_to_delete_messages(self, ctx: commands.Context, messages: list[discord.Message]) -> None:
+    async def _add_reaction_to_delete_messages(self, ctx: commands.Context, messages: List[discord.Message]) -> None:
         last_msg = messages[-1]
         if ctx.channel.permissions_for(ctx.me).add_reactions:
             await last_msg.add_reaction(self.DELETE_REACTION)

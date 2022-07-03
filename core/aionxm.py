@@ -21,13 +21,13 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import asyncio
 import re
-from typing import Any
+from typing import Any, Dict, List
 from urllib.parse import quote
 
 from aiohttp.client_reqrep import ClientResponse
 from aiohttp_client_cache.session import CachedSession
 
-from core.datastructures import PartialGame
+from core.models import PartialGame
 
 # Match Nexus Mods game name in HTML
 GAME_NAME_RE = re.compile(r":: (?P<game_name>.*?)\"")
@@ -64,7 +64,7 @@ class RequestHandler:
     def __init__(
         self,
         session: CachedSession,
-        app_data: dict[str, str],
+        app_data: Dict[str, str],
     ) -> None:
         self.session = session
         # https://help.nexusmods.com/article/114-api-acceptable-use-policy
@@ -73,7 +73,7 @@ class RequestHandler:
             f"Mozilla/5.0 (compatible; {app_data['name']}/{app_data['version']}{f'; +{app_url}' if app_url else ''})"
         )
 
-    async def get_all_games(self) -> list[dict]:
+    async def get_all_games(self) -> List[Dict]:
         """Get JSON response with data from all Nexus Mods games."""
         async with self.session.get(
             "https://data.nexusmods.com/file/nexus-data/games.json",
@@ -118,7 +118,7 @@ class RequestHandler:
 
     async def search_mods(
         self, query: str, game_id: int, include_adult: bool = False, timeout: int = 15000, **params: Any
-    ) -> dict:
+    ) -> Dict:
         """Search Nexus Mods and return JSON response."""
         async with self.session.get(
             url="https://search.nexusmods.com/mods",

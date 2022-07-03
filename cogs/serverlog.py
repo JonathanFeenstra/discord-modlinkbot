@@ -80,7 +80,7 @@ def _prepare_serverlog_embed(guild: discord.Guild) -> discord.Embed:
     if log_author := guild.owner:
         embed.set_footer(
             text=f"Owner: @{log_author} (ID: {log_author.id}) | Created at",
-            icon_url=getattr(log_author.avatar, "url", DEFAULT_AVATAR_URL),
+            icon_url=getattr(log_author.display_avatar, "url", DEFAULT_AVATAR_URL),
         )
 
     return embed
@@ -191,7 +191,7 @@ class ServerLog(commands.Cog):
                 await webhook.send(
                     embed=embed,
                     username=f"{log_author} (ID: {log_author.id})",
-                    avatar_url=getattr(log_author.avatar, "url", DEFAULT_AVATAR_URL),
+                    avatar_url=getattr(log_author.display_avatar, "url", DEFAULT_AVATAR_URL),
                 )
             except (discord.HTTPException, discord.NotFound, discord.Forbidden) as error:
                 print(f"{error.__class__.__name__}: {error}", file=stderr)

@@ -35,7 +35,7 @@ class General(commands.Cog):
     def __init__(self, bot: ModLinkBot) -> None:
         self.bot = bot
 
-    @commands.command()
+    @commands.hybrid_command()
     async def invite(self, ctx: commands.Context) -> None:
         """Send bot invite link."""
         modlinkbot = ctx.me
@@ -48,18 +48,18 @@ class General(commands.Cog):
         )
         await ctx.send(embed=embed)
 
-    @commands.command(aliases=["latency"])
+    @commands.hybrid_command(aliases=["latency"])
     @commands.cooldown(rate=1, per=3, type=commands.BucketType.channel)
     async def ping(self, ctx: commands.Context) -> None:
         """Send latency in ms."""
         embed = discord.Embed(title=":satellite: Ping", colour=ctx.me.colour.value or DEFAULT_COLOUR)
         start = time.perf_counter()
-        await ctx.trigger_typing()
+        await ctx.typing()
         end = time.perf_counter()
         embed.description = f"**Ping:** {round((end - start) * 1000, 1)} ms\n**Ws:** {round(self.bot.latency * 1000, 1)} ms"
         await ctx.send(embed=embed)
 
-    @commands.command(aliases=["prefix"])
+    @commands.hybrid_command(aliases=["prefix"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def setprefix(self, ctx: commands.Context, prefix: str) -> None:
@@ -72,13 +72,13 @@ class General(commands.Cog):
         else:
             await ctx.send(":x: Prefix too long (max length = 3).")
 
-    @commands.command(aliases=["blocked"])
+    @commands.hybrid_command(aliases=["blocked"])
     @commands.cooldown(rate=1, per=10, type=commands.BucketType.channel)
     async def showblocked(self, ctx: commands.Context) -> None:
         """Send embed with blocked IDs."""
         await menus.MenuPages(source=BlockedPageSource(sorted(self.bot.blocked)), clear_reactions_after=True).start(ctx)
 
-    @commands.command(aliases=["showadmins", "owners", "admins"])
+    @commands.hybrid_command(aliases=["showadmins", "owners", "admins"])
     @commands.cooldown(rate=1, per=10, type=commands.BucketType.channel)
     async def showowners(self, ctx: commands.Context) -> None:
         """Send embed with owners."""

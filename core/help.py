@@ -20,7 +20,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 from itertools import groupby
-from typing import Mapping, Optional
+from typing import List, Mapping, Optional
 
 import discord
 from discord.ext import commands
@@ -42,7 +42,7 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
             'characters: ``\\";:=*%$&_<>?`[]{}``.'
         )
 
-    async def send_bot_help(self, mapping: Mapping[Optional[commands.Cog], list[commands.Command]]) -> None:
+    async def send_bot_help(self, mapping: Mapping[Optional[commands.Cog], List[commands.Command]]) -> None:
         """Send help embed for when no help arguments are specified."""
         ctx = self.context
         bot = ctx.bot
@@ -62,7 +62,7 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
             ),
             inline=False,
         )
-        embed.set_footer(text=f"Prompted by @{ctx.author}", icon_url=ctx.author.avatar.url)
+        embed.set_footer(text=f"Prompted by @{ctx.author}", icon_url=ctx.author.display_avatar.url)
 
         await ctx.send(embed=embed)
         await self._send_commands_info(prefix)

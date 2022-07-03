@@ -21,16 +21,17 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import re
 from contextlib import AsyncExitStack
-from typing import Optional
+from typing import Dict, List, Optional
 
 import discord
 from aiohttp import ClientResponseError
+from discord import app_commands
 from discord.ext import commands
 
 from bot import ModLinkBot
 from core.aionxm import NotFound
 from core.constants import DEFAULT_COLOUR
-from core.datastructures import Game, PartialGame
+from core.models import Game, PartialGame
 
 GAME_PATH_RE = re.compile(r"(?:https?://(?:www\.)?nexusmods\.com/)?(?P<path>[a-zA-Z0-9]+)/?$")
 INCLUDE_NSFW_MODS = {0: "Never", 1: "Always", 2: "Only in NSFW channels"}
@@ -48,7 +49,7 @@ class Games(commands.Cog):
 
     def __init__(self, bot: ModLinkBot) -> None:
         self.bot = bot
-        self.games: dict[str, PartialGame] = {}
+        self.games: Dict[str, PartialGame] = {}
 
     async def cog_load(self) -> None:
         """Called whent the cog gets loaded."""
@@ -101,7 +102,7 @@ class Games(commands.Cog):
                 return await self.bot.request_handler.scrape_game_id_and_name(game_path)
         return game
 
-    async def _get_game_info(self, game_id: int) -> Optional[dict]:
+    async def _get_game_info(self, game_id: int) -> Optional[Dict]:
         nexus_games = await self.bot.request_handler.get_all_games()
         for game in nexus_games:
             if game["id"] == game_id:
@@ -124,11 +125,16 @@ class Games(commands.Cog):
             for game_id, game_path, game_name in await con.fetch_games():
                 self.games[game_path] = PartialGame(game_id, game_name)
 
-    @commands.command(aliases=["nsfw"])
+    @commands.hybrid_command(aliases=["nsfw"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def setnsfw(self, ctx: commands.Context, flag: int) -> None:
-        """Set NSFW flag for guild for when to include adult results (0=never; 1=always; 2=only in NSFW channels)."""
+        """Set NSFW flag for guild for when to include adult results.
+
+        0 = Never
+        1 = Always
+        2 = Only in NSFW channels
+        """
         if 0 <= flag <= 2:
             async with self.bot.db_connect() as con:
                 await con.set_guild_nsfw_flag(ctx.guild.id, flag)
@@ -137,7 +143,15 @@ class Games(commands.Cog):
         else:
             await ctx.send(":x: NSFW flag must be 0 (never), 1 (always), or 2 (only in NSFW channels).")
 
-    @commands.command(aliases=["games"])
+    @setnsfw.autocomplete("flag")
+    async def _setnsfw_autocomplete(self, interaction: discord.Interaction, current: int) -> List[app_commands.Choice[int]]:
+        return [
+            app_commands.Choice(name="Never", value=0),
+            app_commands.Choice(name="Always", value=1),
+            app_commands.Choice(name="Only in NSFW channels", value=2),
+        ]
+
+    @commands.hybrid_command(aliases=["games"])
     async def showgames(self, ctx: commands.Context) -> None:
         """List configured Nexus Mods games to search mods for in server/channel."""
         embed = discord.Embed(colour=DEFAULT_COLOUR)
@@ -167,7 +181,7 @@ class Games(commands.Cog):
                 embed.description = ":x: No games are configured in this channel/server."
         await ctx.send(embed=embed)
 
-    @commands.group(aliases=["ag"])
+    @commands.hybrid_group(aliases=["ag"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def addgame(self, ctx: commands.Context) -> None:
@@ -180,7 +194,7 @@ class Games(commands.Cog):
         - Add Skyrim Special Edition to channel games (overrides the server's default games):
           .addgame channel skyrimspecialedition
         """
-        await ctx.trigger_typing()
+        await ctx.typing()
         if ctx.invoked_subcommand is None:
             if ctx.subcommand_passed:
                 await self.addgame_server(ctx, game_query=ctx.subcommand_passed)
@@ -195,7 +209,7 @@ class Games(commands.Cog):
         - Add Kingdom Come Deliverance to the server's default games:
           .addgame server kingdomcomedeliverance
         """
-        await ctx.trigger_typing()
+        await ctx.typing()
         await self._add_search_task(ctx, game_query)
 
     @addgame.command(name="channel", aliases=["c"])
@@ -206,15 +220,25 @@ class Games(commands.Cog):
         - Add Skyrim Special Edition to channel games (overrides the server's default games):
           .addgame channel skyrimspecialedition
         """
-        await ctx.trigger_typing()
+        await ctx.typing()
         await self._add_search_task(ctx, game_query, ctx.channel)
 
-    @commands.group(aliases=["dg"])
+    @addgame_server.autocomplete("game_query")
+    @addgame_channel.autocomplete("game_query")
+    async def _addgame_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+        current_lower = current.lower()
+        return [
+            app_commands.Choice(name=game.name, value=path)
+            for path, game in self.games.items()
+            if current_lower in path or current_lower in game.name.lower() or current_lower in str(game.id)
+        ][:25]
+
+    @commands.hybrid_group(aliases=["dg"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def delgame(self, ctx: commands.Context) -> None:
         """Delete a game to search mods for in the server or channel."""
-        await ctx.trigger_typing()
+        await ctx.typing()
         if ctx.invoked_subcommand is None:
             if game_query := ctx.subcommand_passed:
                 game_path = parse_game_path(game_query)
@@ -229,11 +253,11 @@ class Games(commands.Cog):
     @delgame.command(name="server", aliases=["guild", "s", "g"])
     async def delgame_server(self, ctx: commands.Context, *, game_query: str) -> None:
         """Delete a game to search mods for in the server."""
-        await ctx.trigger_typing()
+        await ctx.typing()
         game_path = parse_game_path(game_query)
         async with self.bot.db_connect() as con:
             await con.enable_foreign_keys()
-            if game := await con.fetch_guild_search_task_game_id_and_name(ctx.guild.id, game_path):
+            if game := await con.fetch_guild_partial_game(ctx.guild.id, game_path):
                 game_id, game_name = game
                 await con.delete_search_task(ctx.guild.id, 0, game_id)
                 await con.commit()
@@ -244,10 +268,10 @@ class Games(commands.Cog):
     @delgame.command(name="channel", aliases=["c"])
     async def delgame_channel(self, ctx: commands.Context, *, game_query: str) -> None:
         """Delete a game to search mods for in the channel."""
-        await ctx.trigger_typing()
+        await ctx.typing()
         game_path = parse_game_path(game_query)
         async with self.bot.db_connect() as con:
-            if game := await con.fetch_channel_search_task_game_id_and_name(ctx.channel.id, game_path):
+            if game := await con.fetch_channel_partial_game(ctx.channel.id, game_path):
                 game_id, game_name = game
                 if await con.fetch_channel_has_any_other_search_tasks(ctx.channel.id, game_id):
                     await con.delete_channel_search_task(ctx.channel.id, game_id)
@@ -259,12 +283,36 @@ class Games(commands.Cog):
             else:
                 await ctx.send(f":x: Game `{game_path}` not found in channel games.")
 
-    @commands.group(aliases=["reset"])
+    @delgame_server.autocomplete("game_query")
+    async def _delgame_server_autocomplete(
+        self, interaction: discord.Interaction, current: str
+    ) -> List[app_commands.Choice[str]]:
+        current_lower = current.lower()
+        async with self.bot.db_connect() as con:
+            return [
+                app_commands.Choice(name=game.name, value=game.path)
+                for game in await con.fetch_guild_games(interaction.guild_id)
+                if current_lower in game.name.lower() or current_lower in str(game.id)
+            ][:25]
+
+    @delgame_channel.autocomplete("game_query")
+    async def _delgame_channel_autocomplete(
+        self, interaction: discord.Interaction, current: str
+    ) -> List[app_commands.Choice[str]]:
+        current_lower = current.lower()
+        async with self.bot.db_connect() as con:
+            return [
+                app_commands.Choice(name=game.name, value=game.path)
+                for game in await con.fetch_channel_games(interaction.channel_id)
+                if current_lower in game.name.lower() or current_lower in str(game.id)
+            ][:25]
+
+    @commands.hybrid_group(aliases=["reset"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def clear(self, ctx: commands.Context) -> Optional[discord.Message]:
         """Clear games to search mods for in the server or channel."""
-        await ctx.trigger_typing()
+        await ctx.typing()
         if ctx.invoked_subcommand is None:
             if ctx.subcommand_passed:
                 return await ctx.send(
@@ -279,7 +327,7 @@ class Games(commands.Cog):
     @clear.command(name="server", aliases=["guild", "s", "g"])
     async def clear_server(self, ctx: commands.Context) -> None:
         """Clear games to search mods for in the server."""
-        await ctx.trigger_typing()
+        await ctx.typing()
         async with self.bot.db_connect() as con:
             await con.clear_guild_search_tasks(ctx.guild.id)
             await con.commit()
@@ -288,7 +336,7 @@ class Games(commands.Cog):
     @clear.command(name="channel", aliases=["c"])
     async def clear_channel(self, ctx: commands.Context) -> None:
         """Clear games to search mods for in the channel."""
-        await ctx.trigger_typing()
+        await ctx.typing()
         async with self.bot.db_connect() as con:
             await con.enable_foreign_keys()
             await con.delete_channel(ctx.channel.id)
