@@ -127,6 +127,7 @@ class Games(commands.Cog):
 
     @commands.hybrid_command(aliases=["nsfw"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
+    @commands.guild_only()
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def setnsfw(self, ctx: commands.Context, flag: int) -> None:
         """Set NSFW flag for guild for when to include adult results.
@@ -152,6 +153,7 @@ class Games(commands.Cog):
         ]
 
     @commands.hybrid_command(aliases=["games"])
+    @commands.guild_only()
     async def showgames(self, ctx: commands.Context) -> None:
         """List configured Nexus Mods games to search mods for in server/channel."""
         embed = discord.Embed(colour=DEFAULT_COLOUR)
@@ -183,6 +185,7 @@ class Games(commands.Cog):
 
     @commands.hybrid_group(aliases=["ag"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
+    @commands.guild_only()
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def addgame(self, ctx: commands.Context) -> None:
         """Add a game to search mods for in the server or channel using the name from the Nexus Mods URL.
@@ -202,6 +205,9 @@ class Games(commands.Cog):
                 await ctx.send(":x: No game specified.")
 
     @addgame.command(name="server", aliases=["guild", "s", "g"])
+    @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
+    @commands.guild_only()
+    @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def addgame_server(self, ctx: commands.Context, *, game_query: str) -> None:
         """Add a game to search mods for in the server using the name from the Nexus Mods URL.
 
@@ -213,6 +219,9 @@ class Games(commands.Cog):
         await self._add_search_task(ctx, game_query)
 
     @addgame.command(name="channel", aliases=["c"])
+    @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
+    @commands.guild_only()
+    @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def addgame_channel(self, ctx: commands.Context, *, game_query: str) -> None:
         """Add a game to search mods for in the channel using the name from the Nexus Mods URL.
 
@@ -235,6 +244,7 @@ class Games(commands.Cog):
 
     @commands.hybrid_group(aliases=["dg"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
+    @commands.guild_only()
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def delgame(self, ctx: commands.Context) -> None:
         """Delete a game to search mods for in the server or channel."""
@@ -251,6 +261,9 @@ class Games(commands.Cog):
                 await ctx.send(":x: No game specified.")
 
     @delgame.command(name="server", aliases=["guild", "s", "g"])
+    @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
+    @commands.guild_only()
+    @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def delgame_server(self, ctx: commands.Context, *, game_query: str) -> None:
         """Delete a game to search mods for in the server."""
         await ctx.typing()
@@ -266,6 +279,9 @@ class Games(commands.Cog):
                 await ctx.send(f":x: Game `{game_path}` not found in server games.")
 
     @delgame.command(name="channel", aliases=["c"])
+    @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
+    @commands.guild_only()
+    @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def delgame_channel(self, ctx: commands.Context, *, game_query: str) -> None:
         """Delete a game to search mods for in the channel."""
         await ctx.typing()
@@ -309,6 +325,7 @@ class Games(commands.Cog):
 
     @commands.hybrid_group(aliases=["reset"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
+    @commands.guild_only()
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def clear(self, ctx: commands.Context) -> Optional[discord.Message]:
         """Clear games to search mods for in the server or channel."""
@@ -325,6 +342,9 @@ class Games(commands.Cog):
                     await self.clear_server(ctx)
 
     @clear.command(name="server", aliases=["guild", "s", "g"])
+    @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
+    @commands.guild_only()
+    @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def clear_server(self, ctx: commands.Context) -> None:
         """Clear games to search mods for in the server."""
         await ctx.typing()
@@ -334,6 +354,9 @@ class Games(commands.Cog):
         await ctx.send(":white_check_mark: Server games cleared.")
 
     @clear.command(name="channel", aliases=["c"])
+    @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
+    @commands.guild_only()
+    @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def clear_channel(self, ctx: commands.Context) -> None:
         """Clear games to search mods for in the channel."""
         await ctx.typing()

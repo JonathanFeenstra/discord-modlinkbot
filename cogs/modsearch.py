@@ -250,7 +250,7 @@ class ModSearch(commands.Cog):
             await self.on_message(after)
 
     @commands.hybrid_command(aliases=["search", "modsearch"])
-    @commands.has_permissions(embed_links=True)
+    @commands.guild_only()
     async def nexus(self, ctx: commands.Context, *, query_text: str, game_path: Optional[str] = None) -> None:
         """Search for query on Nexus Mods."""
         games = []

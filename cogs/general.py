@@ -61,6 +61,7 @@ class General(commands.Cog):
 
     @commands.hybrid_command(aliases=["prefix"])
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
+    @commands.guild_only()
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
     async def setprefix(self, ctx: commands.Context, prefix: str) -> None:
         """Set guild prefix for bot commands."""
