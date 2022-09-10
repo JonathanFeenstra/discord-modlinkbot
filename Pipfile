@@ -8,7 +8,7 @@ aiohttp = ">=3.7.4"
 aiohttp-client-cache = "*"
 aiosqlite = "*"
 discord-ext-menus = {ref = "8686b5d1bbc1d3c862292eb436ab630d6e9c9b53", git = "https://github.com/Rapptz/discord-ext-menus.git"}
-"discord.py" = {ref = "fd9c244f480ae12f972daf2ffe34ae83125847fe", git = "https://github.com/Rapptz/discord.py.git"}
+"discord.py" = "2.0.1"
 uvloop = {version = "*", markers = "sys_platform == 'linux' or sys_platform == 'darwin'"}
 
 [dev-packages]
