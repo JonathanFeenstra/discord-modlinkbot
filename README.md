@@ -1,7 +1,5 @@
 # discord-modlinkbot
 
-[![Discord Bot List](https://top.gg/api/widget/status/665861255051083806.svg)](https://top.gg/bot/665861255051083806)
-[![Add to Discord server](https://img.shields.io/static/v1?style=flat&logo=discord&logoColor=FFF&label=&message=add%20to%20server&color=7289DA)](https://discordapp.com/oauth2/authorize?client_id=665861255051083806&permissions=19649&scope=bot%20applications.commands)
 [![License](https://img.shields.io/github/license/JonathanFeenstra/discord-modlinkbot)](https://github.com/JonathanFeenstra/discord-modlinkbot/blob/master/LICENSE)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
