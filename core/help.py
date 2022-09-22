@@ -55,11 +55,7 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
         )
         embed.add_field(
             name="Links",
-            value=(
-                "[Discord Bot List](https://top.gg/bot/665861255051083806)"
-                f" | [GitHub]({GITHUB_URL})"
-                f" | [Add to your server]({bot.oauth_url})"
-            ),
+            value=(f"[GitHub]({GITHUB_URL}) | [Add to your server]({bot.oauth_url})"),
             inline=False,
         )
         embed.set_footer(text=f"Prompted by @{ctx.author}", icon_url=ctx.author.display_avatar.url)
