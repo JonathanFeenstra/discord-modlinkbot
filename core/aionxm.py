@@ -121,7 +121,7 @@ class RequestHandler:
     ) -> Dict:
         """Search Nexus Mods and return JSON response."""
         async with self.session.get(
-            url="https://search.nexusmods.com/mods",
+            url="https://api.nexusmods.com/mods",
             params={
                 "terms": parse_query(query),
                 "game_id": game_id,
