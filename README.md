@@ -24,7 +24,7 @@ Detailed descriptions of commands and their usage are provided by using the `.he
 
 ### Local installation
 
-The bot requires [Python 3.9](https://www.python.org/downloads/) and the libraries specified in [Pipfile](Pipfile), which can be installed using [`pipenv`](https://pipenv.pypa.io/en/stable/install/#installing-pipenv):
+The bot requires [Python 3.11](https://www.python.org/downloads/) and the libraries specified in [Pipfile](Pipfile), which can be installed using [`pipenv`](https://pipenv.pypa.io/en/stable/install/#installing-pipenv):
 
 ```sh
 pipenv install
