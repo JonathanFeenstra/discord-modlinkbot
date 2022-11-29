@@ -4,7 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-aiohttp = ">=3.7.4"
+aiohttp = ">=3.8.3"
 aiohttp-client-cache = "*"
 aiosqlite = "*"
 discord-ext-menus = {ref = "8686b5d1bbc1d3c862292eb436ab630d6e9c9b53", git = "https://github.com/Rapptz/discord-ext-menus.git"}
