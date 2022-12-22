@@ -40,9 +40,9 @@ PROFILE_ICON_RE = re.compile(
 )
 
 # Leading/trailing characters to remove from Nexus Search queries
-STRIP_RE = re.compile(r"^(?:[^\w]+|[^\w]+)$")
+STRIP_RE = re.compile(r"^(?:\W+|\W+)$")
 # Special patterns to replace with commas in Nexus Search queries
-SPECIAL_RE = re.compile(r"[^\w]+")
+SPECIAL_RE = re.compile(r"\W+")
 
 HTML_BASE_URL = "https://www.nexusmods.com/"
 
