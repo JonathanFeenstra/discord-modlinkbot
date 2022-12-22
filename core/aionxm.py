@@ -105,8 +105,8 @@ class RequestHandler:
             if isinstance(res, ClientResponse):
                 try:
                     # icon URL usually appears in the 30k bytes after the first 70k bytes of HTML
-                    await res.content.readexactly(70000)
-                    if match := PROFILE_ICON_RE.search((await res.content.read(30000)).decode("utf-8")):
+                    await res.content.readexactly(70_000)
+                    if match := PROFILE_ICON_RE.search((await res.content.read(30_000)).decode("utf-8")):
                         return match.group("profile_icon_url")
                 except asyncio.IncompleteReadError:
                     pass
@@ -117,7 +117,7 @@ class RequestHandler:
         raise NotFound(f"Profile icon URL for user ID {user_id} could not be scraped.")
 
     async def search_mods(
-        self, query: str, game_id: int, include_adult: bool = False, timeout: int = 15000, **params: Any
+        self, query: str, game_id: int, include_adult: bool = False, timeout: int = 15_000, **params: Any
     ) -> Dict:
         """Search Nexus Mods and return JSON response."""
         async with self.session.get(
