@@ -4,7 +4,7 @@ ServerLog
 
 Extension for logging the addition and removal of modlinkbot to servers.
 
-Copyright (C) 2019-2022 Jonathan Feenstra
+Copyright (C) 2019-2023 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -21,7 +21,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import traceback
 from sys import stderr
-from typing import Optional, Union
 
 import discord
 from aiohttp import ClientSession
@@ -31,7 +30,7 @@ from bot import ModLinkBot
 from core.constants import DEFAULT_AVATAR_URL, DEFAULT_COLOUR
 
 
-async def get_guild_invite_url(guild: discord.Guild) -> Optional[str]:
+async def get_guild_invite_url(guild: discord.Guild) -> str | None:
     """Get invite link to guild if possible."""
     if guild.me.guild_permissions.manage_guild and (invite_url := await _get_existing_invite_url(guild)):
         return invite_url
@@ -46,7 +45,7 @@ async def get_guild_invite_url(guild: discord.Guild) -> Optional[str]:
     return None
 
 
-async def _get_existing_invite_url(guild: discord.Guild) -> Optional[str]:
+async def _get_existing_invite_url(guild: discord.Guild) -> str | None:
     try:
         invites = await guild.invites()
         for invite in invites:
@@ -56,7 +55,7 @@ async def _get_existing_invite_url(guild: discord.Guild) -> Optional[str]:
         return None
 
 
-async def _get_channel_invite_url(channel: discord.abc.GuildChannel) -> Optional[str]:
+async def _get_channel_invite_url(channel: discord.abc.GuildChannel) -> str | None:
     if channel.permissions_for(channel.guild.me).create_instant_invite:
         try:
             return (await channel.create_invite(unique=False, reason="modlinkbot server log")).url
@@ -104,7 +103,7 @@ class ServerLog(commands.Cog):
         self.session = ClientSession(loop=self.bot.loop)
 
     @property
-    def webhook(self) -> Optional[discord.Webhook]:
+    def webhook(self) -> discord.Webhook | None:
         """Server log webhook."""
         if webhook_url := getattr(self.bot.config, "server_log_webhook_url", None):
             return discord.Webhook.from_url(webhook_url, session=self.session)
@@ -140,7 +139,7 @@ class ServerLog(commands.Cog):
 
     async def _get_bot_addition_log_entry_if_found(
         self, guild: discord.Guild, max_logs_to_check=50
-    ) -> Optional[discord.AuditLogEntry]:
+    ) -> discord.AuditLogEntry | None:
         if guild.me.guild_permissions.view_audit_log:
             async for log_entry in guild.audit_logs(action=discord.AuditLogAction.bot_add, limit=max_logs_to_check):
                 if log_entry.target == guild.me:
@@ -148,7 +147,7 @@ class ServerLog(commands.Cog):
                         return await guild.leave()
                     return log_entry
 
-    async def log_guild_addition(self, guild: discord.Guild, log_entry: Optional[discord.AuditLogEntry] = None) -> None:
+    async def log_guild_addition(self, guild: discord.Guild, log_entry: discord.AuditLogEntry | None = None) -> None:
         """Send webhook log message when guild joins."""
         embed = _prepare_serverlog_embed(guild)
         embed.colour = guild.me.colour.value or DEFAULT_COLOUR
@@ -181,7 +180,7 @@ class ServerLog(commands.Cog):
         await self.send_serverlog(embed, guild.owner or self.bot.user)
 
     async def send_serverlog(
-        self, embed: discord.Embed, log_author: Union[discord.ClientUser, discord.User, discord.Member]
+        self, embed: discord.Embed, log_author: discord.ClientUser | discord.User | discord.Member
     ) -> None:
         """Send server log message to the configured webhook."""
         if (webhook := self.webhook) is None:

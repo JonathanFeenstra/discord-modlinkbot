@@ -4,7 +4,7 @@ Games
 
 Extension for management of server/channel-specific game configurations.
 
-Copyright (C) 2019-2022 Jonathan Feenstra
+Copyright (C) 2019-2023 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -21,7 +21,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import re
 from contextlib import AsyncExitStack
-from typing import Dict, List, Optional
 
 import discord
 from aiohttp import ClientResponseError
@@ -49,15 +48,15 @@ class Games(commands.Cog):
 
     def __init__(self, bot: ModLinkBot) -> None:
         self.bot = bot
-        self.games: Dict[str, PartialGame] = {}
+        self.games: dict[str, PartialGame] = {}
 
     async def cog_load(self) -> None:
         """Called whent the cog gets loaded."""
         await self._update_game_data()
 
     async def _add_search_task(
-        self, ctx: commands.Context, game_query: str, channel: Optional[discord.TextChannel] = None
-    ) -> Optional[discord.Message]:
+        self, ctx: commands.Context, game_query: str, channel: discord.TextChannel | None = None
+    ) -> discord.Message | None:
         try:
             game_path = parse_game_path(game_query)
             game_id, game_name = await self._get_game_id_and_name(game_path)
@@ -102,7 +101,7 @@ class Games(commands.Cog):
                 return await self.bot.request_handler.scrape_game_id_and_name(game_path)
         return game
 
-    async def _get_game_info(self, game_id: int) -> Optional[Dict]:
+    async def _get_game_info(self, game_id: int) -> dict | None:
         nexus_games = await self.bot.request_handler.get_all_games()
         for game in nexus_games:
             if game["id"] == game_id:
@@ -145,7 +144,7 @@ class Games(commands.Cog):
             await ctx.send(":x: NSFW flag must be 0 (never), 1 (always), or 2 (only in NSFW channels).")
 
     @setnsfw.autocomplete("flag")
-    async def _setnsfw_autocomplete(self, interaction: discord.Interaction, current: int) -> List[app_commands.Choice[int]]:
+    async def _setnsfw_autocomplete(self, interaction: discord.Interaction, current: int) -> list[app_commands.Choice[int]]:
         return [
             app_commands.Choice(name="Never", value=0),
             app_commands.Choice(name="Always", value=1),
@@ -155,7 +154,7 @@ class Games(commands.Cog):
     @commands.hybrid_command(aliases=["games"])
     @commands.guild_only()
     async def showgames(self, ctx: commands.Context) -> None:
-        """List configured Nexus Mods games to search mods for in server/channel."""
+        """list configured Nexus Mods games to search mods for in server/channel."""
         embed = discord.Embed(colour=DEFAULT_COLOUR)
         embed.set_author(
             name="Nexus Mods Search Configuration",
@@ -234,7 +233,7 @@ class Games(commands.Cog):
 
     @addgame_server.autocomplete("game_query")
     @addgame_channel.autocomplete("game_query")
-    async def _addgame_autocomplete(self, interaction: discord.Interaction, current: str) -> List[app_commands.Choice[str]]:
+    async def _addgame_autocomplete(self, interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
         current_lower = current.lower()
         return [
             app_commands.Choice(name=game.name, value=path)
@@ -302,7 +301,7 @@ class Games(commands.Cog):
     @delgame_server.autocomplete("game_query")
     async def _delgame_server_autocomplete(
         self, interaction: discord.Interaction, current: str
-    ) -> List[app_commands.Choice[str]]:
+    ) -> list[app_commands.Choice[str]]:
         current_lower = current.lower()
         async with self.bot.db_connect() as con:
             return [
@@ -314,7 +313,7 @@ class Games(commands.Cog):
     @delgame_channel.autocomplete("game_query")
     async def _delgame_channel_autocomplete(
         self, interaction: discord.Interaction, current: str
-    ) -> List[app_commands.Choice[str]]:
+    ) -> list[app_commands.Choice[str]]:
         current_lower = current.lower()
         async with self.bot.db_connect() as con:
             return [
@@ -327,7 +326,7 @@ class Games(commands.Cog):
     @commands.cooldown(rate=1, per=5, type=commands.BucketType.guild)
     @commands.guild_only()
     @commands.check_any(commands.is_owner(), commands.has_permissions(manage_guild=True))
-    async def clear(self, ctx: commands.Context) -> Optional[discord.Message]:
+    async def clear(self, ctx: commands.Context) -> discord.Message | None:
         """Clear games to search mods for in the server or channel."""
         await ctx.typing()
         if ctx.invoked_subcommand is None:

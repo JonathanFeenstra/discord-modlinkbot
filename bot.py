@@ -4,7 +4,7 @@ discord-modlinkbot
 
 A Discord bot for linking Nexus Mods search results.
 
-Copyright (C) 2019-2022 Jonathan Feenstra
+Copyright (C) 2019-2023 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -26,7 +26,7 @@ import traceback
 from datetime import timedelta
 from sys import stderr
 from types import ModuleType
-from typing import Iterable, List
+from typing import Iterable
 
 import discord
 from aiohttp_client_cache import CachedSession, SQLiteBackend
@@ -191,7 +191,7 @@ class ModLinkBot(commands.Bot):
         """Check if message is valid to be processed (in a server and author not blocked)."""
         return msg.author.id not in self.blocked and isinstance(msg.guild, discord.Guild)
 
-    async def get_prefix(self, msg: discord.Message) -> List[str]:
+    async def get_prefix(self, msg: discord.Message) -> list[str]:
         """Check `msg` for valid command prefixes."""
         if msg.guild:
             async with self.db_connect() as con:

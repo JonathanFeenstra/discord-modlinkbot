@@ -3,7 +3,7 @@
  * 
  * SQLite database creation script for modlinkbot.
  *
- * Copyright (C) 2019-2022 Jonathan Feenstra
+ * Copyright (C) 2019-2023 Jonathan Feenstra
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as

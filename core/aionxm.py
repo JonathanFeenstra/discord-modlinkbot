@@ -4,7 +4,7 @@ AIONXM
 
 Asynchronous Nexus Mods request handling.
 
-Copyright (C) 2019-2022 Jonathan Feenstra
+Copyright (C) 2019-2023 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -21,7 +21,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import asyncio
 import re
-from typing import Any, Dict, List
+from typing import Any
 from urllib.parse import quote
 
 from aiohttp.client_reqrep import ClientResponse
@@ -64,7 +64,7 @@ class RequestHandler:
     def __init__(
         self,
         session: CachedSession,
-        app_data: Dict[str, str],
+        app_data: dict[str, str],
     ) -> None:
         self.session = session
         # https://help.nexusmods.com/article/114-api-acceptable-use-policy
@@ -73,7 +73,7 @@ class RequestHandler:
             f"Mozilla/5.0 (compatible; {app_data['name']}/{app_data['version']}{f'; +{app_url}' if app_url else ''})"
         )
 
-    async def get_all_games(self) -> List[Dict]:
+    async def get_all_games(self) -> list[dict]:
         """Get JSON response with data from all Nexus Mods games."""
         async with self.session.get(
             "https://data.nexusmods.com/file/nexus-data/games.json",
@@ -118,7 +118,7 @@ class RequestHandler:
 
     async def search_mods(
         self, query: str, game_id: int, include_adult: bool = False, timeout: int = 15_000, **params: Any
-    ) -> Dict:
+    ) -> dict:
         """Search Nexus Mods and return JSON response."""
         async with self.session.get(
             url="https://api.nexusmods.com/mods",

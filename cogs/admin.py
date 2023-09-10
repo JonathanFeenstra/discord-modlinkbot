@@ -4,7 +4,7 @@ Admin
 
 Extension for providing bot owner/admin-only commands.
 
-Copyright (C) 2019-2022 Jonathan Feenstra
+Copyright (C) 2019-2023 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -20,7 +20,6 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 import os
-from typing import List, Optional
 
 import discord
 from discord import app_commands
@@ -61,7 +60,7 @@ class Admin(commands.Cog):
     @load.autocomplete("extension")
     async def _extensions_autocomplete(
         self, interaction: discord.Interaction, current: str
-    ) -> List[app_commands.Choice[str]]:
+    ) -> list[app_commands.Choice[str]]:
         extensions = sorted(
             os.path.splitext(extension)[0]
             for extension in os.listdir("./cogs")
@@ -96,7 +95,7 @@ class Admin(commands.Cog):
     @reload.autocomplete("extension")
     async def _loaded_extensions_autocomplete(
         self, interaction: discord.Interaction, current: str
-    ) -> List[app_commands.Choice[str]]:
+    ) -> list[app_commands.Choice[str]]:
         return [
             app_commands.Choice(name=name, value=name.lower())
             for name in self.bot.cogs.keys()
@@ -121,7 +120,7 @@ class Admin(commands.Cog):
             await ctx.send(f":white_check_mark: Username set to {repr(username)}.", ephemeral=True)
 
     @commands.hybrid_command(aliases=["avatar", "pfp"])
-    async def changeavatar(self, ctx: commands.Context, *, url: Optional[str] = None) -> Optional[discord.Message]:
+    async def changeavatar(self, ctx: commands.Context, *, url: str | None = None) -> discord.Message | None:
         """Change the bot's avatar picture with an image attachment or URL."""
         if url is None:
             if len(ctx.message.attachments) == 1:
@@ -149,7 +148,7 @@ class Admin(commands.Cog):
         await pages.start(ctx)
 
     @commands.hybrid_command()
-    async def blockuser(self, ctx: commands.Context, *, user: discord.User) -> Optional[discord.Message]:
+    async def blockuser(self, ctx: commands.Context, *, user: discord.User) -> discord.Message | None:
         """Block a user from using the bot."""
         if user.id == self.bot.app_owner_id:
             return await ctx.send(":x: App owner cannot be blocked.", ephemeral=True)
@@ -159,7 +158,7 @@ class Admin(commands.Cog):
         await ctx.send(f":white_check_mark: Blocked `{user}`.", ephemeral=True)
 
     @commands.hybrid_command(aliases=["blockguild"])
-    async def blockserver(self, ctx: commands.Context, *, server: discord.Guild) -> Optional[discord.Message]:
+    async def blockserver(self, ctx: commands.Context, *, server: discord.Guild) -> discord.Message | None:
         """Block a server from using the bot."""
         if server.id in self.bot.blocked:
             return await ctx.send(":x: Server is already blocked.", ephemeral=True)

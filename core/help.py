@@ -4,7 +4,7 @@ Help
 
 Help command for modlinkbot.
 
-Copyright (C) 2019-2022 Jonathan Feenstra
+Copyright (C) 2019-2023 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -20,7 +20,7 @@ You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
 from itertools import groupby
-from typing import List, Mapping, Optional
+from typing import Mapping
 
 import discord
 from discord.ext import commands
@@ -42,7 +42,7 @@ class ModLinkBotHelpCommand(commands.DefaultHelpCommand):
             'characters: ``\\";:=*%$&_<>?`[]{}``.'
         )
 
-    async def send_bot_help(self, mapping: Mapping[Optional[commands.Cog], List[commands.Command]]) -> None:
+    async def send_bot_help(self, mapping: Mapping[commands.Cog | None, list[commands.Command]]) -> None:
         """Send help embed for when no help arguments are specified."""
         ctx = self.context
         bot = ctx.bot

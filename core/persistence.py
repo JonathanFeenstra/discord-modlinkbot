@@ -4,7 +4,7 @@ Persistence
 
 Persistent data storage management for modlinkbot.
 
-Copyright (C) 2019-2022 Jonathan Feenstra
+Copyright (C) 2019-2023 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -22,7 +22,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 import sqlite3
 from asyncio import Lock
 from os import PathLike
-from typing import Any, Iterable, Optional, Union
+from typing import Any, Iterable
 
 from aiosqlite import Connection
 from aiosqlite.context import contextmanager
@@ -43,14 +43,14 @@ class AsyncDatabaseConnection(Connection):
         await self.execute("PRAGMA foreign_keys = ON")
 
     @contextmanager
-    async def executefile(self, file: Union[str, bytes, int]) -> Cursor:
+    async def executefile(self, file: str | bytes | int) -> Cursor:
         """Execute an SQL script from a file."""
         async with self._lock:
             with open(file) as script:
                 return await self.executescript(script.read())
 
     @contextmanager
-    async def execute_fetchone(self, sql: str, parameters: Optional[Iterable[Any]] = None) -> Optional[sqlite3.Row]:
+    async def execute_fetchone(self, sql: str, parameters: Iterable[Any] | None = None) -> sqlite3.Row | None:
         """Helper to execute a query and return a single row."""
         if parameters is None:
             parameters = []
@@ -77,13 +77,13 @@ class GuildConnectionMixin(AsyncDatabaseConnection):
         """Fetch all guild IDs."""
         return tuple(row[0] for row in await self.execute_fetchall("SELECT guild_id FROM guild"))
 
-    async def fetch_guild_prefix(self, guild_id: int) -> Optional[str]:
+    async def fetch_guild_prefix(self, guild_id: int) -> str | None:
         """Fetch the prefix of the guild with the specified ID."""
         if row := await self.execute_fetchone("SELECT prefix FROM guild WHERE guild_id = ?", (guild_id,)):
             return row[0]
         return None
 
-    async def fetch_guild_nsfw_flag(self, guild_id: int) -> Optional[int]:
+    async def fetch_guild_nsfw_flag(self, guild_id: int) -> int | None:
         """Fetch the NSFW flag of the guild with the specified ID."""
         if row := await self.execute_fetchone("SELECT nsfw FROM guild WHERE guild_id = ?", (guild_id,)):
             return row[0]
@@ -125,7 +125,7 @@ class GameAndSearchTaskConnectionMixin(AsyncDatabaseConnection):
         """Insert game into the database."""
         await self.execute("INSERT OR IGNORE INTO game VALUES (?, ?, ?)", game)
 
-    async def fetch_partial_game(self, game_path: str) -> Optional[PartialGame]:
+    async def fetch_partial_game(self, game_path: str) -> PartialGame | None:
         """Fetch partial game with the specified ID."""
         if row := await self.execute_fetchone("SELECT game_id, name FROM game WHERE path = ?", (game_path,)):
             return PartialGame(*row)
@@ -157,7 +157,7 @@ class GameAndSearchTaskConnectionMixin(AsyncDatabaseConnection):
             (guild_id, channel_id),
         )
 
-    async def fetch_guild_partial_game(self, guild_id: int, game_path: str) -> Optional[PartialGame]:
+    async def fetch_guild_partial_game(self, guild_id: int, game_path: str) -> PartialGame | None:
         """Fetch a partial game from a guild search task."""
         if row := await self.execute_fetchone(
             """SELECT s.game_id, g.name
@@ -169,7 +169,7 @@ class GameAndSearchTaskConnectionMixin(AsyncDatabaseConnection):
             return PartialGame(*row)
         return None
 
-    async def fetch_channel_partial_game(self, channel_id: int, game_path: str) -> Optional[PartialGame]:
+    async def fetch_channel_partial_game(self, channel_id: int, game_path: str) -> PartialGame | None:
         """Fetch a partial game from a channel search task."""
         if row := await self.execute_fetchone(
             """SELECT g.game_id, g.name
@@ -305,7 +305,7 @@ class ModLinkBotConnection(
         return con
 
 
-def connect(database: Union[str, bytes, PathLike], iter_chunk_size: int = 64) -> ModLinkBotConnection:
+def connect(database: str | bytes | PathLike, iter_chunk_size: int = 64) -> ModLinkBotConnection:
     """Connect to the database."""
     return ModLinkBotConnection(
         lambda: sqlite3.connect(

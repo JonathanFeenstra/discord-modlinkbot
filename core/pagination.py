@@ -4,7 +4,7 @@ Pagination
 
 Pagination for modlinkbot using discord-ext-menus.
 
-Copyright (C) 2019-2022 Jonathan Feenstra
+Copyright (C) 2019-2023 Jonathan Feenstra
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
@@ -19,7 +19,7 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
-from typing import List, Sequence
+from typing import Sequence
 
 import discord
 from discord.ext import menus
@@ -33,7 +33,7 @@ class ServerPageSource(menus.ListPageSource):
     def __init__(self, data: Sequence[discord.Guild]) -> None:
         super().__init__(data, per_page=30)
 
-    def format_page(self, menu: menus.Menu, page: List[discord.Guild]) -> discord.Embed:
+    def format_page(self, menu: menus.Menu, page: list[discord.Guild]) -> discord.Embed:
         """Format a page with server member counts and names."""
         guilds_info = ["**`Members  ` Name**"]
         for guild in page:
@@ -53,7 +53,7 @@ class OwnerPageSource(menus.ListPageSource):
     def __init__(self, data: Sequence[int]) -> None:
         super().__init__(data, per_page=50)
 
-    def format_page(self, menu: menus.Menu, page: List[int]) -> discord.Embed:
+    def format_page(self, menu: menus.Menu, page: list[int]) -> discord.Embed:
         """Format a page with bot owner user mentions."""
         return discord.Embed(
             title=":sunglasses: Bot owners",
@@ -68,7 +68,7 @@ class BlockedPageSource(menus.ListPageSource):
     def __init__(self, data: Sequence[int]) -> None:
         super().__init__(data, per_page=50)
 
-    def format_page(self, menu: menus.Menu, page: List[int]) -> discord.Embed:
+    def format_page(self, menu: menus.Menu, page: list[int]) -> discord.Embed:
         """Format a page with blocked IDs."""
         return discord.Embed(
             title=":stop_sign: Blocked IDs",
